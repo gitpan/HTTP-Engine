@@ -1,0 +1,26 @@
+abstract: Web Server Gateway Interface and HTTP Server Engine Drivers (Yet Another Catalyst::Engine)
+author: Kazuhiro Osawa <ko@yappo.ne.jp>
+build_requires: 
+  Test::More: 0
+distribution_type: module
+generated_by: Module::Install version 0.640
+license: perl
+name: HTTP-Engine
+no_index: 
+  directory: 
+    - inc
+    - t
+requires: 
+  CGI::Simple::Cookie: 0
+  Class::Accessor::Fast: 0
+  Class::Component: 0
+  Errno: 0
+  File::Copy: 0
+  File::Spec::Unix: 0
+  HTTP::Body: 0
+  HTTP::Request::AsCGI: 0
+  IO::File: 0
+  IO::Socket: 0
+  Scalar::Util: 0
+  URI: 0
+version: 0.0.1
