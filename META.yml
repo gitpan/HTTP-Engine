@@ -10,17 +10,21 @@ no_index:
   directory: 
     - inc
     - t
+recommends: 
+  Carp::Always: 0
+  Errno: 0
+  FCGI: 0
+  HTTP::Request::AsCGI: 0
+  Module::Reload: 0
 requires: 
   CGI::Simple::Cookie: 0
   Class::Accessor::Fast: 0
   Class::Component: 0
-  Errno: 0
   File::Copy: 0
   File::Spec::Unix: 0
   HTTP::Body: 0
-  HTTP::Request::AsCGI: 0
   IO::File: 0
   IO::Socket: 0
   Scalar::Util: 0
   URI: 0
-version: 0.0.1
+version: 0.0.2

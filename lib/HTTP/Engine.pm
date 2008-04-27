@@ -1,31 +1,14 @@
-package HTTPEx;
-use strict;
-use warnings;
-
-=head1 NAME
-
-HTTPEx - extension base class for  HTTP::Engine
-
-=head1 DESCRIPTION
-
-HTTP::Engine extension namespace
-
-=head1 SEE ALSO
-
-L<HTTP::Engine>
-
-=cut
-
 package HTTP::Engine;
-
 use strict;
 use warnings;
+BEGIN { eval "package HTTPEx; sub dummy {} 1;" }
 use base 'HTTPEx';
 use Class::Component;
-our $VERSION = '0.0.1';
+our $VERSION = '0.0.2';
 
 use Carp;
 use Scalar::Util;
+use URI;
 
 use HTTP::Engine::Context;
 use HTTP::Engine::Request;
@@ -94,6 +77,7 @@ sub handle_request {
     };
     if (my $e = $@) {
         $self->push_errors($e);
+        $self->run_hook('handle_error', $context);
     }
     $self->finalize($context);
 
@@ -114,8 +98,8 @@ sub finalize_headers {
 
     # Handle redirects
     if (my $location = $c->res->redirect ) {
-        $self->log->( debug => qq/Redirecting to "$location"/ );
-        $c->res->header( Location => $location );
+        $self->log( debug => qq/Redirecting to "$location"/ );
+        $c->res->header( Location => $self->absolute_url($c, $location) );
     }
 
     # Content-Length
@@ -153,6 +137,23 @@ sub finalize_body {
 }
 sub finalize_output_body {}
 
+
+sub absolute_url {
+    my($self, $c, $location) = @_;
+
+    unless ($location =~ m!^https?://!) {
+        my $base = $c->req->base;
+        my $url = sprintf '%s://%s', $base->scheme, $base->host;
+        unless (($base->scheme eq 'http' && $base->port eq '80') ||
+               ($base->scheme eq 'https' && $base->port eq '443')) {
+            $url .= ':' . $base->port;
+        }
+        $url .= $base->path;
+        $location = URI->new_abs($location, $url);
+    }
+    $location;
+}
+
 1;
 __END__
 
@@ -188,7 +189,7 @@ for example, mod_perl and FastCGI
 =head1 PLUGINS
 
 For all non-core plugins (consult at #codrepos first), use the HTTPEx::
-namespace. For example, if you have a plugin module named "HTTPEx::Plguin::Foo",
+namespace. For example, if you have a plugin module named "HTTPEx::Plugin::Foo",
 you should load it as
 
   use HTTP::Engine;
