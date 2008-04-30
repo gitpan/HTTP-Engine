@@ -15,6 +15,7 @@ recommends:
   Errno: 0
   FCGI: 0
   HTTP::Request::AsCGI: 0
+  HTTP::Server::Simple: 0
   Module::Reload: 0
 requires: 
   CGI::Simple::Cookie: 0
@@ -27,4 +28,4 @@ requires:
   IO::Socket: 0
   Scalar::Util: 0
   URI: 0
-version: 0.0.2
+version: 0.0.3

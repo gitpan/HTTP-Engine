@@ -4,8 +4,7 @@ use warnings;
 use base 'HTTP::Engine::Plugin::Interface';
 
 use Errno 'EWOULDBLOCK';
-use HTTP::Status;
-use Socket;
+use Socket qw(:all);
 use IO::Socket::INET ();
 use IO::Select       ();
 
@@ -38,11 +37,7 @@ sub prepare_read {
 sub finalize_output_headers :InterfaceMethod {
     my($self, $c) = @_;
 
-    my $protocol = $c->req->protocol;
-    my $status   = $c->res->status;
-    my $message  = status_message($status);
-
-    $self->write("$protocol $status $message\015\012");
+    $self->write_response_line($c);
 
     $c->res->headers->date(time);
     $c->res->headers->header(
@@ -191,9 +186,10 @@ sub _handler {
           && index($connection, 'te') == -1          # opera stuff
           && $sel->can_read(5);
 
-        last unless ($method, $uri, $protocol) = $self->_parse_request_line(\*STDIN);
+        last unless ($method, $uri, $protocol) = $self->_parse_request_line(\*STDIN, 1);
     }
 
+    sysread(Remote, my $buf, 4096) if $sel->can_read(0); # IE bk
     close Remote;
 }
 
@@ -207,10 +203,13 @@ sub _keep_alive {
 }
 
 sub _parse_request_line {
-    my($self, $handle) = @_;
+    my($self, $handle, $is_keepalive) = @_;
 
     # Parse request line
     my $line = $self->_get_line($handle);
+    if ($is_keepalive && ($line eq '' || $line eq "\015")) {
+        $line = $self->_get_line($handle);
+    }
     return ()
       unless my($method, $uri, $protocol) =
       $line =~ m/\A(\w+)\s+(\S+)(?:\s+HTTP\/(\d+(?:\.\d+)?))?\z/;
