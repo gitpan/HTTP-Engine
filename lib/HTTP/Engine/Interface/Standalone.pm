@@ -1,12 +1,16 @@
-package HTTP::Engine::Plugin::Interface::Standalone;
+package HTTP::Engine::Interface::Standalone;
 use strict;
 use warnings;
-use base 'HTTP::Engine::Plugin::Interface';
+use base 'HTTP::Engine::Plugin';
+use HTTP::Engine::Role;
+with 'HTTP::Engine::Role::Interface';
 
 use Errno 'EWOULDBLOCK';
 use Socket qw(:all);
 use IO::Socket::INET ();
 use IO::Select       ();
+
+use constant should_write_response_line => 1;
 
 sub read_chunk {
     shift;
@@ -27,30 +31,26 @@ sub read_chunk {
     }
 }
 
-sub prepare_read {
+before prepare_read => sub {
     my $self = shift;
     # Set the input handle to non-blocking
     *STDIN->blocking(0);
-    $self->SUPER::prepare_read(@_);
-}
+};
 
-sub finalize_output_headers :InterfaceMethod {
-    my($self, $c) = @_;
+before write_headers => sub {
+    my($self, $res) = @_;
 
-    $self->write_response_line($c);
-
-    $c->res->headers->date(time);
-    $c->res->headers->header(
+    $res->headers->date(time);
+    $res->headers->header(
         Connection => $self->_keep_alive ? 'keep-alive' : 'close'
     );
+};
 
-    $self->SUPER::finalize_output_headers($c);
-}
-
-sub run :Method {
+sub run {
     my($self, $c) = @_;
     my $host = $self->config->{host} || '';
     my $port = $self->config->{port} || 80;
+    $self->_keep_alive($self->config->{keepalive});
 
     # Setup address
     my $addr = $host ? inet_aton($host) : INADDR_ANY;
@@ -251,3 +251,19 @@ sub _inet_addr { unpack "N*", inet_aton($_[0]) }
 
 
 1;
+__END__
+
+=head1 NAME
+
+HTTP::Engine::Interface::Standalone - Standalone HTTP Server
+
+=head1 SYNOPSIS
+
+  interface:
+    module: Standalone
+    args:
+      host: localhost
+      port: 5963
+      fork: 1
+      keepalive: 1
+    handle_request: methodname

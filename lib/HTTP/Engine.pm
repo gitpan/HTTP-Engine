@@ -1,33 +1,66 @@
 package HTTP::Engine;
 use strict;
 use warnings;
-BEGIN { eval "package HTTPEx; sub dummy {} 1;" }
+BEGIN { eval "package HTTPEx; sub dummy {} 1;" } ## no critic
 use base 'HTTPEx';
 use Class::Component;
-our $VERSION = '0.0.3';
+our $VERSION = '0.0.4';
 
 use Carp;
 use Scalar::Util;
 use URI;
 
 use HTTP::Engine::Context;
-use HTTP::Engine::Request;
-use HTTP::Engine::Response;
 
-__PACKAGE__->load_components(qw/Plaggerize Autocall::InjectMethod/);
+__PACKAGE__->load_components(qw/Plaggerize Moosenize Autocall::InjectMethod/);
 
 sub new {
     my ($class, %opts) = @_;
 
-    my $self = $class->NEXT( 'new' => { config => delete $opts{config} } );
-    $self->set_handle_request(delete $opts{handle_request}) if $opts{handle_request};
+    my $config = +{ %opts };
+    $config->{plugins} ||= [];
 
+    $class->setup_innerware($config);
+    $class->setup_interface($config);
+
+    my $handle_request = $config->{interface}->{handle_request};
+    croak 'handle_request is required ' unless $handle_request;
+    unless (ref $handle_request) {
+        my $caller = caller;
+        no strict 'refs';
+        $handle_request = \&{"$caller\::$handle_request"};
+    }
+
+    my $self = $class->SUPER::new({ config => $config });
+    $self->set_handle_request($handle_request);
     $self->conf->{global}->{log}->{fh} ||= \*STDERR;
 
     return $self;
 }
 
-sub run { croak ref($_[0] || $_[0] ) ." did not override HTTP::Engine::run" }
+sub setup_interface {
+    my($class, $config) = @_;
+    return unless $config->{interface};
+
+    # prepare interface config 
+    my $interface = $config->{interface};
+    $interface->{conf} ||= $interface->{args};
+    unless ($interface->{module} =~ /^\+/) {
+        $interface->{module} = '+HTTP::Engine::Interface::' . $interface->{module};
+    }
+    unshift @{ $config->{plugins} }, $interface;
+}
+
+sub setup_innerware {
+    my($class, $config) = @_;
+
+    my $innerware_baseclass = $config->{innerware_baseclass} || 'Basic';
+    my $plugin = {};
+    unless ($innerware_baseclass =~ /^\+/) {
+        $plugin->{module} = '+HTTP::Engine::Innerware::' . $innerware_baseclass;
+    }
+    unshift @{ $config->{plugins} }, $plugin;
+}
 
 sub set_handle_request {
     my($self, $callback) = @_;
@@ -35,132 +68,47 @@ sub set_handle_request {
     $self->{handle_request} = $callback;
 }
 
-sub prepare_request {}
-sub prepare_connection {}
-sub prepare_query_parameters {}
-sub prepare_headers {}
-sub prepare_cookie {}
-sub prepare_path {}
-sub prepare_body {}
-sub prepare_body_parameters {}
-sub prepare_parameters {}
-sub prepare_uploads {}
-sub errors { shift->{errors} }
-sub push_errors { push @{ shift->{errors} }, @_ }
-sub clear_errors { shift->{errors} = [] }
+sub run { croak ref($_[0] || $_[0] ) ." did not override HTTP::Engine::run" }
 
 sub handle_request {
     my $self = shift;
+    $self->request_init;
 
-    $self->clear_errors();
+    my $context = HTTP::Engine::Context->new;
 
-    $self->run_hook( 'initialize' );
+    $self->run_innerware_before($context);
 
-    my $context = HTTP::Engine::Context->new({
-        engine => $self,
-        req    => HTTP::Engine::Request->new,
-        res    => HTTP::Engine::Response->new,
-        conf   => $self->conf,
-    });
-    if (my %env = @_) {
-        $context->env(\%env);
-    } else {
-        $context->env(\%ENV);
-    }
-    for my $method (qw/ request connection query_parameters headers cookie path body body_parameters parameters uploads /) {
-        my $method = "prepare_$method";
-        $self->$method($context);
-    }
-
-    $self->run_hook( before_handle_request => $context );
-    my $ret = eval {
+    eval {
+        local *STDIN;
+        local *STDOUT;
         $self->{handle_request}->($context);
     };
-    {
-        local $@;
-        $self->run_hook( after_handle_request => $context );
-    }
-    if (my $e = $@) {
-        $self->push_errors($e);
-        $self->run_hook('handle_error', $context);
-    }
-    $self->finalize($context);
+    $context->handle_error_message($@);
 
-    $ret;
+    $self->run_innerware_after($context);
 }
 
-sub finalize {
-    my($self, $c) = @_;
 
-    $self->finalize_headers($c); # finalize_headers
-    $c->res->body('') if $c->req->method eq 'HEAD';
-    $self->finalize_body($c); # finalize_body
+sub _run_innerware_hooks {
+    my($self, $context, @hooks) = @_;
+
+    my $rets;
+    for my $hook (@hooks) {
+        my($plugin, $method) = ($hook->{plugin}, $hook->{method});
+        my $ret = $plugin->$method($self, $context, $rets);
+        push @{ $rets }, $ret;
+    }
+    $rets;
 }
-
-sub finalize_headers {
-    my($self, $c) = @_;
-    return if $c->res->{_finalized_headers};
-
-    # Handle redirects
-    if (my $location = $c->res->redirect ) {
-        $self->log( debug => qq/Redirecting to "$location"/ );
-        $c->res->header( Location => $self->absolute_url($c, $location) );
-        $c->res->body($c->res->status . ': Redirect') unless $c->res->body;
-    }
-
-    # Content-Length
-    $c->res->content_length(0);
-    if ($c->res->body && !$c->res->content_length) {
-        # get the length from a filehandle
-	if (Scalar::Util::blessed($c->res->body) && $c->res->body->can('read')) {
-	    if (my $stat = stat $c->res->body) {
-                $c->res->content_length($stat->size);
-            } else {
-                $self->log( warn => 'Serving filehandle without a content-length' );
-            }
-	} else {
-	    $c->res->content_length(bytes::length($c->res->body));
-        }
-    }
-
-    $c->res->content_type('text/html') unless $c->res->content_type;
-
-    # Errors
-    if ($c->res->status =~ /^(1\d\d|[23]04)$/) {
-        $c->res->headers->remove_header("Content-Length");
-        $c->res->body('');
-    }
-
-    $self->finalize_cookies($c);
-    $self->finalize_output_headers($c);
-
-    # Done
-    $c->res->{_finalized_headers} = 1;
+sub run_innerware_before {
+    my($self, $context) = @_;
+    return unless my $hooks = $self->class_component_hooks->{innerware_before};
+    $self->_run_innerware_hooks($context, @{ $hooks });
 }
-
-sub finalize_cookies {}
-sub finalize_output_headers {}
-sub finalize_body {
-    my $self = shift;
-    $self->finalize_output_body(@_);
-}
-sub finalize_output_body {}
-
-
-sub absolute_url {
-    my($self, $c, $location) = @_;
-
-    unless ($location =~ m!^https?://!) {
-        my $base = $c->req->base;
-        my $url = sprintf '%s://%s', $base->scheme, $base->host;
-        unless (($base->scheme eq 'http' && $base->port eq '80') ||
-               ($base->scheme eq 'https' && $base->port eq '443')) {
-            $url .= ':' . $base->port;
-        }
-        $url .= $base->path;
-        $location = URI->new_abs($location, $url);
-    }
-    $location;
+sub run_innerware_after {
+    my($self, $context) = @_;
+    return unless my $hooks = $self->class_component_hooks->{innerware_after};
+    $self->_run_innerware_hooks($context, reverse @{ $hooks });
 }
 
 1;
@@ -175,13 +123,22 @@ HTTP::Engine - Web Server Gateway Interface and HTTP Server Engine Drivers (Yet 
 =head1 SYNOPSIS
 
   use HTTP::Engine;
-  HTTP::Engine->new(
-    config         => 'config.yaml',
-    handle_request => sub {
+  my $engine = HTTP::Engine->new(
+      interface => {
+          module => 'ServerSimple',
+          args   => {
+              host => 'localhost',
+              port =>  1978,
+          },
+          handle_request => 'handle_request',# or CODE ref
+      },
+  };
+  $engine->run;
+
+  sub handle_request {
       my $c = shift;
       $c->res->body( Dumper($e->req) );
-    }
-  )->run;
+  }
 
 =head1 CONCEPT RELEASE
 
@@ -195,14 +152,15 @@ socket binding server. The purpose of this module is to be an
 adaptor between various HTTP-based logic layers and the actual 
 implementation of an HTTP server, such as, mod_perl and FastCGI
 
-=head1 PLUGINS
+=head1 MIDDLEWARES
 
-For all non-core plugins (consult #codrepos first), use the HTTPEx::
-namespace. For example, if you have a plugin module named "HTTPEx::Plugin::Foo",
+For all non-core middlewares (consult #codrepos first), use the HTTPEx::
+namespace. For example, if you have a plugin module named "HTTPEx::Middleware::Foo",
 you could load it as
 
-  use HTTP::Engine;
-  HTTP::Engine->load_plugins(qw( +HTTPEx::Plugin::Foo ));
+=head1 BRANCHES
+
+Moose branches L<http://svn.coderepos.org/share/lang/perl/HTTP-Engine/branches/moose/>
 
 =head1 AUTHOR
 

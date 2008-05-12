@@ -8,29 +8,25 @@ use Carp;
 use IO::Socket qw[AF_INET inet_aton];
 
 __PACKAGE__->mk_accessors(
-    qw/action address arguments context cookies match method
-      protocol query_parameters secure captures uri user raw_body/
+    qw/address context cookies method
+      protocol query_parameters secure uri user raw_body http_body /
 );
 
-*args         = \&arguments;
 *body_params  = \&body_parameters;
 *input        = \&body;
 *params       = \&parameters;
 *query_params = \&query_parameters;
 *path_info    = \&path;
-*snippets     = \&captures;
 
 sub new {
     my $class = shift;
     my $self  = $class->SUPER::new(@_);
 
-    $self->{arguments}        = [];
     $self->{body_parameters}  = {};
     $self->{cookies}          = {};
     $self->{parameters}       = {};
     $self->{query_parameters} = {};
     $self->{secure}           = 0;
-    $self->{captures}         = [];
     $self->{uploads}          = {};
     $self->{raw_body}         = '';
 
@@ -158,11 +154,11 @@ sub upload {
         if (ref $self->uploads->{$upload} eq 'ARRAY') {
             return (wantarray)
               ? @{ $self->uploads->{$upload} }
-		  : $self->uploads->{$upload}->[0];
+              : $self->uploads->{$upload}->[0];
         } else {
             return (wantarray)
               ? ( $self->uploads->{$upload} )
-		  : $self->uploads->{$upload};
+              : $self->uploads->{$upload};
         }
     }
 
@@ -182,9 +178,8 @@ sub upload {
 
 sub uploads {
     my ($self, $uploads) = @_;
-    $self->context->prepare_body;
     $self->{uploads} = $uploads if $uploads;
-    return $self->{uploads};
+    $self->{uploads};
 }
 
 sub uri_with {
@@ -196,7 +191,7 @@ sub uri_with {
         next unless defined $value;
         for ( ref $value eq 'ARRAY' ? @{ $value } : $value ) {
             $_ = "$_";
-	    utf8::encode( $_ );
+            utf8::encode( $_ );
         }
     };
     

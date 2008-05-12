@@ -1,15 +1,19 @@
-package HTTP::Engine::Plugin::Interface::FCGI;
+package HTTP::Engine::Interface::FCGI;
 use strict;
 use warnings;
-require HTTP::Engine::Plugin::Interface;
-use base 'HTTP::Engine::Plugin::Interface';
+use base 'HTTP::Engine::Plugin';
+use HTTP::Engine::Role;
+with 'HTTP::Engine::Role::Interface';
+
 use HTTP::Status;
 use FCGI;
 
-sub run :Method {
+use constant should_write_response_line => 0;
+
+sub run {
     my ( $self, $class, $listen, ) = @_;
 
-    my $options = $self->conf;
+    my $options = $self->config;
 
     my $sock = 0;
     if ($listen) {
@@ -49,7 +53,7 @@ sub run :Method {
         $self->daemon_fork() if $options->{detach};
 
         if ( $options->{manager} ) {
-            eval "use $options->{manager}; 1" or die $@;
+            eval "use $options->{manager}; 1" or die $@; ## no critic
 
             $proc_manager = $options->{manager}->new(
                 {
@@ -110,20 +114,23 @@ sub daemon_fork {
 sub daemon_detach {
     my $self = shift;
     print "FastCGI daemon started (pid $$)\n";
-    open STDIN,  "+</dev/null" or die $!;
-    open STDOUT, ">&STDIN"     or die $!;
-    open STDERR, ">&STDIN"     or die $!;
+    open STDIN,  "+</dev/null" or die $!; ## no critic
+    open STDOUT, ">&STDIN"     or die $!; ## no critic
+    open STDERR, ">&STDIN"     or die $!; ## no critic
     POSIX::setsid();
 }
 
 1;
 __END__
 
+
 =head1 SYNOPSIS
 
-    - module: Interface::FCGI
-      conf:
+  interface:
+    module: FCGI
+      args:
         leave_umask: 1
+      handle_request: methodname
 
 =head1 AUTHORS
 
