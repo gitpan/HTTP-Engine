@@ -28,4 +28,4 @@ requires:
   IO::Socket: 0
   Scalar::Util: 0
   URI: 0
-version: 0.0.5
+version: 0.0.6
