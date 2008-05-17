@@ -3,18 +3,18 @@ use warnings;
 use lib 'lib';
 use Data::Dumper;
 use HTTP::Engine;
+use HTTP::Engine::Interface::POE;
+use HTTP::Response;
+use HTTP::Engine::Request;
+use HTTP::MobileAttribute;
 use String::TT qw/strip tt/;
 
 my $engine = HTTP::Engine->new(
-    interface => {
-        module  => 'ServerSimple',
-        args => {
-            port    => 9999,
-        },
+    interface => HTTP::Engine::Interface::POE->new({
+        port    => 3999,
         request_handler => sub {
             my $c = shift;
             local $Data::Dumper::Sortkeys = 1;
-            die "OK!" if ($c->req->body_params->{'foo'} || '') eq 'ok';
             my $req_dump = Dumper( $c->req );
             my $raw      = $c->req->raw_body;
             my $body     = strip tt q{ 
@@ -34,7 +34,9 @@ my $engine = HTTP::Engine->new(
 
             $c->res->body($body);
         },
-    },
+    }),
 );
 $engine->run;
 
+print "Running POE in http://localhost:3999/\n";
+POE::Kernel->run;

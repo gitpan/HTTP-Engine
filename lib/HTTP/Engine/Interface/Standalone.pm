@@ -1,8 +1,5 @@
 package HTTP::Engine::Interface::Standalone;
-use strict;
-use warnings;
-use base 'HTTP::Engine::Plugin';
-use HTTP::Engine::Role;
+use Moose;
 with 'HTTP::Engine::Role::Interface';
 
 use Errno 'EWOULDBLOCK';
@@ -12,7 +9,45 @@ use IO::Select       ();
 
 use constant should_write_response_line => 1;
 
-sub read_chunk {
+has host => (
+    is      => 'ro',
+    isa     => 'Str',
+    default => '127.0.0.1',
+);
+
+has port => (
+    is      => 'ro',
+    isa     => 'Int',
+    default => 1978,
+);
+
+has keepalive => (
+    is      => 'ro',
+    isa     => 'Bool',
+    default => 0,
+);
+
+has fork => (
+    is      => 'ro',
+    isa     => 'Bool',
+    default => 0,
+);
+
+has allowed => (
+    is      => 'rw',
+    isa     => 'HashRef',
+    default => sub { { '127.0.0.1' => '255.255.255.255' } },
+);
+
+has argv => (
+    is      => 'ro',
+    isa     => 'ArrayRef',
+    default => sub { [] },
+);
+
+
+use HTTP::Engine::ResponseWriter;
+HTTP::Engine::RequestBuilder->meta->add_method( _read_chunk  => sub {
     shift;
     # support for non-blocking IO
     my $rin = '';
@@ -29,28 +64,32 @@ sub read_chunk {
             return;
         }
     }
-}
+});
 
-before prepare_read => sub {
+HTTP::Engine::RequestBuilder->meta->add_before_method_modifier( _prepare_read => sub {
     my $self = shift;
     # Set the input handle to non-blocking
     *STDIN->blocking(0);
-};
+});
 
-before write_headers => sub {
-    my($self, $res) = @_;
+use HTTP::Engine::ResponseWriter;
+my $is_keepalive;
+HTTP::Engine::ResponseWriter->meta->add_before_method_modifier( finalize => sub {
+    my($self, $c) = @_;
 
-    $res->headers->date(time);
-    $res->headers->header(
-        Connection => $self->_keep_alive ? 'keep-alive' : 'close'
+    $c->res->headers->date(time);
+    $c->res->headers->header(
+        Connection => $is_keepalive ? 'keep-alive' : 'close'
     );
-};
+});
 
 sub run {
-    my($self, $c) = @_;
-    my $host = $self->config->{host} || '';
-    my $port = $self->config->{port} || 80;
-    $self->_keep_alive($self->config->{keepalive});
+    my($self, ) = @_;
+
+    $is_keepalive = sub { $self->keepalive };
+
+    my $host = $self->host;
+    my $port = $self->port;
 
     # Setup address
     my $addr = $host ? inet_aton($host) : INADDR_ANY;
@@ -74,10 +113,8 @@ sub run {
     my $url = "http://$host";
     $url .= ":$port" unless $port == 80;
 
-    $c->log( info => "You can connect to your server at $url\n");
-
     my $restart = 0;
-    my $allowed = $self->config->{allowed} || { '127.0.0.1' => '255.255.255.255' };
+    my $allowed = $self->allowed;
     my $parent = $$;
     my $pid    = undef;
     local $SIG{CHLD} = 'IGNORE';
@@ -92,8 +129,8 @@ sub run {
         next unless my($method, $uri, $protocol) = $self->_parse_request_line(\*Remote);
         unless (uc $method eq 'RESTART') {
             # Fork
-            next if $self->config->{fork} && ($pid = fork);
-            $self->_handler($c, $port, $method, $uri, $protocol);
+            next if $self->fork && ($pid = fork);
+            $self->_handler($port, $method, $uri, $protocol);
             $daemon->close if defined $pid;
         } else {
             my $sockdata = $self->_socket_data(\*Remote);
@@ -118,14 +155,14 @@ sub run {
     if ($restart) {
         $SIG{CHLD} = 'DEFAULT';
         wait;
-        exec $^X . ' "' . $0 . '" ' . join(' ', @{ $self->config->{argv} });
+        exec $^X . ' "' . $0 . '" ' . join(' ', @{ $self->argv });
     }
 
     exit;
 }
 
 sub _handler {
-    my($self, $c, $port, $method, $uri, $protocol) = @_;
+    my($self, $port, $method, $uri, $protocol) = @_;
 
     # Ignore broken pipes as an HTTP server should
     local $SIG{PIPE} = sub { $self->{_sigpipe} = 1; close Remote };
@@ -177,11 +214,11 @@ sub _handler {
             }
         }
         # Pass flow control to HTTP::Engine
-        $c->handle_request;
+        $self->handle_request;
 
         my $connection = lc $ENV{HTTP_CONNECTION};
         last
-          unless $self->_keep_alive()
+          unless $self->keepalive
           && index($connection, 'keep-alive') > -1
           && index($connection, 'te') == -1          # opera stuff
           && $sel->can_read(5);
@@ -191,15 +228,6 @@ sub _handler {
 
     sysread(Remote, my $buf, 4096) if $sel->can_read(0); # IE bk
     close Remote;
-}
-
-sub _keep_alive {
-    my($self, $keepalive) = @_;
-
-    my $r = $self->{_keepalive} || 0;
-    $self->{_keepalive} = $keepalive if defined $keepalive;
-
-    $r;
 }
 
 sub _parse_request_line {

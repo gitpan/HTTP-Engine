@@ -1,20 +1,17 @@
 package HTTP::Engine::Interface::CGI;
-use strict;
-use warnings;
-use base 'HTTP::Engine::Plugin';
-use HTTP::Engine::Role;
+use Moose;
 with 'HTTP::Engine::Role::Interface';
-
 use constant should_write_response_line => 0;
 
-sub run :Method{
-    my ($self, $c) = @_;
-    local %ENV = %ENV;
-    $c->handle_request;
+sub run {
+    my ($self) = @_;
+    $self->handle_request();
 }
 
 1;
 __END__
+
+=for stopwords 
 
 =for stopwords CGI Naoki Nyarla Okamura yaml
 
@@ -24,13 +21,23 @@ HTTP::Engine::Interface::CGI - CGI interface for HTTP::Engine
 
 =head1 SYNOPSIS
 
-  interface:
-    module: CGI
-    request_handler: methodname
+    HTTP::Engine::Interface::CGI->new();
+
+=head1 METHODS
+
+=over 4
+
+=item run
+
+internal use only
+
+=back
 
 =head1 AUTHOR
 
 Naoki Okamura (Nyarla) E<lt>thotep@nyarla.netE<gt>
+
+Tokuhiro Matsuno
 
 =head1 LICENSE
 

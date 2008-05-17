@@ -2,19 +2,18 @@ use strict;
 use warnings;
 use lib 'lib';
 use Data::Dumper;
-use HTTP::Engine;
+use HTTP::Engine middlewares => [qw/+examples::MiddleWare/];
 use String::TT qw/strip tt/;
 
 my $engine = HTTP::Engine->new(
     interface => {
         module  => 'ServerSimple',
         args => {
-            port    => 9999,
+            port    => 14000,
         },
         request_handler => sub {
             my $c = shift;
             local $Data::Dumper::Sortkeys = 1;
-            die "OK!" if ($c->req->body_params->{'foo'} || '') eq 'ok';
             my $req_dump = Dumper( $c->req );
             my $raw      = $c->req->raw_body;
             my $body     = strip tt q{ 
@@ -27,6 +26,7 @@ my $engine = HTTP::Engine->new(
                     <input type="file" name="upload_file" />
                     <input type="submit" />
                 </form>
+                REGEXP TEXT
 
                 <pre>[% raw      | html %]</pre>
                 <pre>[% req_dump | html %]</pre>

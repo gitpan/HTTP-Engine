@@ -1,118 +1,64 @@
 package HTTP::Engine;
-use strict;
-use warnings;
-BEGIN { eval "package HTTPEx; sub dummy {} 1;" } ## no critic
-use base 'HTTPEx';
-use Class::Component;
-our $VERSION = '0.0.6';
-
-use Carp;
-use Scalar::Util;
-use URI;
-
+use Moose;
+use HTTP::Engine::Types::Core qw( Interface );
+our $VERSION = '0.0.7';
 use HTTP::Engine::Context;
+use HTTP::Engine::Request;
+use HTTP::Engine::Request::Upload;
+use HTTP::Engine::Response;
+use HTTP::Engine::RequestProcessor;
 
-__PACKAGE__->load_components(qw/Plaggerize Moosenize Autocall::InjectMethod/);
+has 'interface' => (
+    is      => 'ro',
+    does    => 'Interface',
+    coerce  => 1,
+    handles => [ qw(run load_plugins) ],
+);
 
-sub new {
-    my ($class, %opts) = @_;
+sub import {
+    my($class, %args) = @_;
+    return unless $args{middlewares} && ref $args{middlewares} eq 'ARRAY';
+    $class->load_middlewares(@{ $args{middlewares} });
+}
 
-    my $config = +{ %opts };
-    $config->{plugins} ||= [];
+sub load_middlewares {
+    my ($class, @middlewares) = @_;
+    for my $middleware (@middlewares) {
+        $class->load_middleware( $middleware );
+    }
+}
 
-    $class->setup_innerware($config);
-    $class->setup_interface($config);
+sub load_middleware {
+    my ($class, $middleware) = @_;
 
-    my $request_handler = $config->{interface}->{request_handler};
-    croak 'request_handler is required ' unless $request_handler;
-    unless (ref $request_handler) {
-        my $caller = caller;
-        no strict 'refs';
-        $request_handler = \&{"$caller\::$request_handler"};
+    require UNIVERSAL::require;
+
+    my $pkg;
+    if (($pkg = $middleware) =~ s/^(\+)//) {
+        $pkg->require or die $@;
+    } else {
+        $pkg = 'HTTP::Engine::Middleware::' . $middleware;
+        unless ($pkg->require) {
+            $pkg = 'HTTPEx::Middleware::' . $middleware;
+            $pkg->require or die $@;
+        }
     }
 
-    my $self = $class->SUPER::new({ config => $config });
-    $self->set_request_handler($request_handler);
-    $self->conf->{global}->{log}->{fh} ||= \*STDERR;
-
-    return $self;
-}
-
-sub setup_interface {
-    my($class, $config) = @_;
-    return unless $config->{interface};
-
-    # prepare interface config 
-    my $interface = $config->{interface};
-    $interface->{conf} ||= $interface->{args};
-    unless ($interface->{module} =~ /^\+/) {
-        $interface->{module} = '+HTTP::Engine::Interface::' . $interface->{module};
+    if ($pkg->meta->has_method('setup')) {
+        $pkg->setup();
     }
-    unshift @{ $config->{plugins} }, $interface;
-}
 
-sub setup_innerware {
-    my($class, $config) = @_;
-
-    my $innerware_baseclass = $config->{innerware_baseclass} || 'Basic';
-    my $plugin = {};
-    unless ($innerware_baseclass =~ /^\+/) {
-        $plugin->{module} = '+HTTP::Engine::Innerware::' . $innerware_baseclass;
+    if ($pkg->meta->has_method('wrap')) {
+        HTTP::Engine::RequestProcessor->meta->add_around_method_modifier(
+            call_handler => $pkg->meta->get_method('wrap')->body
+        );
     }
-    unshift @{ $config->{plugins} }, $plugin;
-}
-
-sub set_request_handler {
-    my($self, $callback) = @_;
-    croak 'please CODE refarence' unless $callback && ref($callback) eq 'CODE';
-    $self->{request_handler} = $callback;
-}
-
-sub run { croak ref($_[0] || $_[0] ) ." did not override HTTP::Engine::run" }
-
-sub handle_request {
-    my $self = shift;
-    $self->request_init;
-
-    my $context = HTTP::Engine::Context->new;
-
-    $self->run_innerware_before($context);
-
-    eval {
-        local *STDIN;
-        local *STDOUT;
-        $self->{request_handler}->($context);
-    };
-    $context->handle_error_message($@);
-
-    $self->run_innerware_after($context);
-}
-
-
-sub _run_innerware_hooks {
-    my($self, $context, @hooks) = @_;
-
-    my $rets;
-    for my $hook (@hooks) {
-        my($plugin, $method) = ($hook->{plugin}, $hook->{method});
-        my $ret = $plugin->$method($self, $context, $rets);
-        push @{ $rets }, $ret;
-    }
-    $rets;
-}
-sub run_innerware_before {
-    my($self, $context) = @_;
-    return unless my $hooks = $self->class_component_hooks->{innerware_before};
-    $self->_run_innerware_hooks($context, @{ $hooks });
-}
-sub run_innerware_after {
-    my($self, $context) = @_;
-    return unless my $hooks = $self->class_component_hooks->{innerware_after};
-    $self->_run_innerware_hooks($context, reverse @{ $hooks });
 }
 
 1;
 __END__
+
+=for stopwords middlewares Middleware middleware
 
 =encoding utf8
 
@@ -130,15 +76,17 @@ HTTP::Engine - Web Server Gateway Interface and HTTP Server Engine Drivers (Yet 
               host => 'localhost',
               port =>  1978,
           },
-          request_handler => 'handle_request',# or CODE ref
+          request_handler => 'main::handle_request',# or CODE ref
       },
-  };
+  );
   $engine->run;
 
+  use Data::Dumper;
   sub handle_request {
       my $c = shift;
-      $c->res->body( Dumper($e->req) );
+      $c->res->body( Dumper($c->req) );
   }
+
 
 =head1 CONCEPT RELEASE
 
@@ -148,9 +96,65 @@ It is mostly based on the code of Catalyst::Engine.
 =head1 DESCRIPTION
 
 HTTP::Engine is a bare-bones, extensible HTTP engine. It is not a 
-socket binding server. The purpose of this module is to be an 
-adaptor between various HTTP-based logic layers and the actual 
-implementation of an HTTP server, such as, mod_perl and FastCGI
+socket binding server.
+
+The purpose of this module is to be an adaptor between various HTTP-based 
+logic layers and the actual implementation of an HTTP server, such as, 
+mod_perl and FastCGI.
+
+Internally, the only thing HTTP::Engine will do is to prepare a 
+HTTP::Engine::Request object for you to handle, and pass to your handler's
+C<TBD> method. In turn your C<TBD> method should return a fully prepared
+HTTP::Engine::Response object.
+
+HTTP::Engine will handle absorbing the differences between the environment,
+the I/O, etc. Your application can focus on creating response objects
+(which is pretty much what your typical webapp is doing)
+
+=head1 INTERFACES
+
+Interfaces are the actual environment-dependent components which handles
+the actual interaction between your clients and the application.
+
+For example, in CGI mode, you can write to STDOUT and expect your clients to
+see it, but in mod_perl, you may need to use $r-E<gt>print instead.
+
+Interfaces are the actual layers that does the interaction. HTTP::Engine
+currently supports the following:
+
+# XXX TODO: Update the list
+
+=over 4
+
+=item HTTP::Engine::Interface::CGI
+
+=item HTTP::Engine::Interface::FastCGI
+
+=item HTTP::Engine::Interface::ModPerl
+
+=item HTTP::Engine::Interface::ServerSimple
+
+=back
+
+Interfaces can be specified as part of the HTTP::Engine constructor:
+
+  my $interface = HTTP::Engine::Interface::FastCGI->new(
+    handler => ...
+  );
+  HTTP::Engine->new(
+    interface => $interface
+  )->run();
+
+Or you can let HTTP::Engine instantiate the interface for you:
+
+  HTTP::Engine->new(
+    interface => {
+      module => 'FastCGI',
+      args   => {
+        handler => ...
+      }
+    }
+  )->run();
 
 =head1 MIDDLEWARES
 
@@ -158,15 +162,29 @@ For all non-core middlewares (consult #codrepos first), use the HTTPEx::
 namespace. For example, if you have a plugin module named "HTTPEx::Middleware::Foo",
 you could load it as
 
+  use HTTP::Engine middlewares => [ qw( +HTTPEx::Plugin::Foo ) ];
+
+=head1 METHODS
+
+=over 4
+
+=item load_middleware(middleware)
+
+=item load_middlewares(qw/ middleware middleware /)
+
+Loads the given middleware into the HTTP::Engine.
+
+=back
+
 =head1 BRANCHES
 
-Moose branches L<http://svn.coderepos.org/share/lang/perl/HTTP-Engine/branches/moose/>
+Moose branch L<http://svn.coderepos.org/share/lang/perl/HTTP-Engine/branches/moose/>
 
 =head1 AUTHOR
 
 Kazuhiro Osawa E<lt>ko@yappo.ne.jpE<gt>
 
-lestrrat
+Daisuke Maki
 
 tokuhirom
 
@@ -174,11 +192,17 @@ nyarla
 
 marcus
 
+hidek
+
+dann
+
+typester (Interface::FCGI)
+
 =head1 SEE ALSO
 
 wiki page L<http://coderepos.org/share/wiki/HTTP%3A%3AEngine>
 
-L<Class::Component>
+L<Moose>
 
 =head1 REPOSITORY
 

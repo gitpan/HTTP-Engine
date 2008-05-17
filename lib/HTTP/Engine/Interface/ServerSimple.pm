@@ -1,38 +1,40 @@
 package HTTP::Engine::Interface::ServerSimple;
-use strict;
-use warnings;
-use base 'HTTP::Engine::Plugin';
-use HTTP::Engine::Role;
+use Moose;
 with 'HTTP::Engine::Role::Interface';
-
-use HTTP::Server::Simple 0.33;
-
 use constant should_write_response_line => 1;
+use HTTP::Server::Simple 0.33;
+use HTTP::Server::Simple::CGI;
 
+has host => (
+    is      => 'ro',
+    isa     => 'Str',
+    default => '127.0.0.1',
+);
 
-sub run  {
-    my ($self, $c) = @_;
+has port => (
+    is      => 'ro',
+    isa     => 'Int',
+    default => 1978,
+);
 
-    my $port = $self->config->{port} || '80';
-    my $host = $self->config->{host} || '127.0.0.1';
+sub run {
+    my ($self, ) = @_;
 
-    my $server = HTTP::Engine::Interface::ServerSimple::Server->new( $port );
-    $server->host($host);
-
-    $server->{http_engine} = $c;
+    my $server = Moose::Meta::Class
+        ->create_anon_class(
+            superclasses => ['HTTP::Server::Simple::CGI'],
+            methods => {
+                handler => sub {
+                    $self->handle_request();
+                },
+            },
+            cache => 1
+        )->new_object(
+        )->new(
+            $self->port
+        );
+    $server->host($self->host);
     $server->run;
-}
-
-sub prepare_write {}
-
-package HTTP::Engine::Interface::ServerSimple::Server;
-use base qw/HTTP::Server::Simple::CGI/;
-
-sub handler {
-    my $self = shift;
-
-    local %ENV = %ENV;
-    $self->{http_engine}->handle_request;
 }
 
 1;
@@ -44,16 +46,24 @@ HTTP::Engine::Interface::ServerSimple - HTTP::Server::Simple interface for HTTP:
 
 =head1 SYNOPSIS
 
-  interface:
-    module: ServerSimple
-    args:
-      host: localhost
-      port: 5963
-    request_handler: methodname
+    HTTP::Engine::Interface::ServerSimple->new(
+        host => '0.0.0.0',
+        port => 5963,
+    );
+
+=head1 METHODS
+
+=over 4
+
+=item run
+
+internal use only
+
+=back
 
 =head1 DESCRIPTION
 
-HTTP::Engine::Interface::ServerSimple is wrapper for HTTP::Server::Simple.
+HTTP::Engine::Plugin::Interface::ServerSimple is wrapper for HTTP::Server::Simple.
 
 HTTP::Server::Simple is flexible web server.And it can use Net::Server, so you can make it preforking or using Coro.
 

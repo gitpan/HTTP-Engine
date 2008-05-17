@@ -1,8 +1,5 @@
 package HTTP::Engine::Interface::Test;
-use strict;
-use warnings;
-use base 'HTTP::Engine::Plugin';
-use HTTP::Engine::Role;
+use Moose;
 with 'HTTP::Engine::Role::Interface';
 
 use HTTP::Request::AsCGI;
@@ -10,12 +7,12 @@ use HTTP::Request::AsCGI;
 use constant should_write_response_line => 0;
 
 sub run {
-    my($senf, $c, $request, $env) = @_;
+    my($self, $request, $env) = @_;
     $env ||= \%ENV;
 
     my $cgi = HTTP::Request::AsCGI->new( $request, %$env )->setup;
 
-    $c->handle_request;
+    $self->handle_request;
 
     $cgi->restore->response;
 }

@@ -1,27 +1,45 @@
-package HTTP::Engine::Innerware::Basic::Request;
-use strict;
-use warnings;
-
+package HTTP::Engine::RequestBuilder;
+use Moose;
 use CGI::Simple::Cookie;
-use HTTP::Body;
-use HTTP::Headers;
-use URI;
-use URI::QueryParam;
 
-use HTTP::Engine::Request::Upload;
+# tempolary file path for upload file.
+has upload_tmp => (
+    is => 'rw',
+);
 
-our $ENGINE;
+has chunk_size => (
+    is      => 'ro',
+    isa     => 'Int',
+    default => 4096,
+);
 
-sub build {
-    my($class, $basic, $context) = @_;
+has read_length => (
+    is  => 'rw',
+    isa => 'Int',
+);
+
+has read_position => (
+    is  => 'rw',
+    isa => 'Int',
+);
+
+no Moose;
+
+sub prepare {
+    my ($self, $context) = @_;
+
+    # init.
+    delete $self->{_prepared_read};
+
+    # do build.
     for my $method (qw( connection query_parameters headers cookie path body parameters uploads )) {
-        my $method = "prepare_$method";
-        $class->$method($basic, $context);
+        my $method = "_prepare_$method";
+        $self->$method($context);
     }
 }
 
-sub prepare_connection {
-    my($class, $basic, $c) = @_;
+sub _prepare_connection {
+    my($self, $c) = @_;
 
     my $req = $c->req;
     $req->address($ENV{REMOTE_ADDR}) unless $req->address;
@@ -34,13 +52,13 @@ sub prepare_connection {
     $req->secure(1) if $ENV{SERVER_PORT} == 443;
 }
 
-sub prepare_query_parameters  {
-    my($class, $basic, $c) = @_;
+sub _prepare_query_parameters  {
+    my($self, $c) = @_;
     my $query_string = $ENV{QUERY_STRING};
     return unless 
         defined $query_string && length($query_string);
 
-    # replace semi-colons                                                                                                                    
+    # replace semi-colons
     $query_string =~ s/;/&/g;
 
     my $uri = URI->new('', 'http');
@@ -51,10 +69,10 @@ sub prepare_query_parameters  {
     }
 }
 
-sub prepare_headers  {
-    my($class, $basic, $c) = @_;
+sub _prepare_headers  {
+    my($self, $c) = @_;
 
-    # Read headers from env                                                                                                                  
+    # Read headers from env
     for my $header (keys %ENV) {
         next unless $header =~ /^(?:HTTP|CONTENT|COOKIE)/i;
         (my $field = $header) =~ s/^HTTPS?_//;
@@ -62,16 +80,16 @@ sub prepare_headers  {
     }
 }
 
-sub prepare_cookie  {
-    my($class, $basic, $c) = @_;
+sub _prepare_cookie  {
+    my($self, $c) = @_;
 
     if (my $header = $c->req->header('Cookie')) {
         $c->req->cookies( { CGI::Simple::Cookie->parse($header) } );
     }
 }
 
-sub prepare_path  {
-    my($class, $basic, $c) = @_;
+sub _prepare_path  {
+    my($self, $c) = @_;
 
     my $req    = $c->req;
 
@@ -109,28 +127,42 @@ sub prepare_path  {
     $c->req->base($base);
 }
 
-sub prepare_body  {
-    my($class, $basic, $c) = @_;
+sub _prepare_body  {
+    my($self, $c) = @_;
 
     my $req = $c->req;
 
-    # TODO: Lazzy
-    my $content_length = $req->header('Content-Length') || 0;
+    # TODO: catalyst のように prepare フェーズで処理せず、遅延評価できるようにする 
+    $self->read_length($req->header('Content-Length') || 0);
     my $type = $req->header('Content-Type');
 
-    $req->http_body( HTTP::Body->new($type, $content_length) );
-    $req->http_body->{tmpdir} = $basic->config->{upload_tmp} if $basic->config->{upload_tmp};
+    $req->http_body( HTTP::Body->new($type, $self->read_length) );
+    $req->http_body->{tmpdir} = $self->upload_tmp if $self->upload_tmp;
 
-    $ENGINE->interface_proxy( read_length => $content_length );
-    $ENGINE->interface_proxy( read_all => sub {
-        my $chunk = shift;
-        $req->raw_body($req->raw_body . $chunk);
-        $req->http_body->add($chunk);
-    });
+    if ($self->read_length > 0) {
+        while (my $buffer = $self->_read) {
+            $self->_prepare_body_chunk($c, $buffer);
+        }
+
+        # paranoia against wrong Content-Length header
+        my $remaining = $self->read_length - $self->read_position;
+        if ($remaining > 0) {
+            $self->_finalize_read;
+            die "Wrong Content-Length value: " . $self->read_length;
+        }
+    }
 }
 
-sub prepare_parameters  {
-    my ($class, $basic, $c) = @_;
+sub _prepare_body_chunk {
+    my($self, $c, $chunk) = @_;
+
+    my $req = $c->req;
+    $req->raw_body($req->raw_body . $chunk);
+    $req->http_body->add($chunk);
+}
+
+sub _prepare_parameters  {
+    my ($self, $c) = @_;
 
     my $req = $c->req;
     my $parameters = $req->parameters;
@@ -159,10 +191,9 @@ sub prepare_parameters  {
     }
 }
 
-sub prepare_uploads  {
-    my($class, $basic, $c) = @_;
+sub _prepare_uploads  {
+    my($self, $c) = @_;
 
-    # TODO: Lazzy
     my $req     = $c->req;
     my $uploads = $req->http_body->upload;
     for my $name (keys %{ $uploads }) {
@@ -187,4 +218,74 @@ sub prepare_uploads  {
     }
 }
 
+sub _prepare_read {
+    my $self = shift;
+    $self->read_position(0);
+}
+
+sub _read {
+    my ($self, $maxlength) = @_;
+
+    unless ($self->{_prepared_read}) {
+        $self->_prepare_read;
+        $self->{_prepared_read} = 1;
+    }
+
+    my $remaining = $self->read_length - $self->read_position;
+    $maxlength ||= $self->chunk_size;
+
+    # Are we done reading?
+    if ($remaining <= 0) {
+        $self->_finalize_read;
+        return;
+    }
+
+    my $readlen = ($remaining > $maxlength) ? $maxlength : $remaining;
+    my $rc = $self->_read_chunk(my $buffer, $readlen);
+    if (defined $rc) {
+        $self->read_position($self->read_position + $rc);
+        return $buffer;
+    } else {
+        die "Unknown error reading input: $!";
+    }
+}
+
+sub _read_chunk {
+    my $self = shift;
+
+    if (blessed(*STDIN)) {
+        *STDIN->sysread(@_);
+    } else {
+        STDIN->sysread(@_);
+    }
+}
+
+sub _finalize_read { undef shift->{_prepared_read} }
+
 1;
+__END__
+
+=encoding utf8
+
+=head1 NAME
+
+HTTP::Engine::RequestBuilder - build request object from env/stdin
+
+=head1 SYNOPSIS
+
+    INTERNAL USE ONLY ＞＜
+
+=head1 METHODS
+
+=over 4
+
+=item prepare
+
+internal use only
+
+=back
+
+=head1 SEE ALSO
+
+L<HTTP::Engine>
+
