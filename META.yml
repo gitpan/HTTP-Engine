@@ -27,4 +27,4 @@ requires:
   MooseX::Types: 0
   Scalar::Util: 0
   URI: 0
-version: 0.0.7
+version: 0.0.8

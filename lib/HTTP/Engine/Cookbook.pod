@@ -1,8 +1,10 @@
 =pod
 
+=for stopwords TBA
+
 =head1 NAME
 
-Moose::Cookbook - How to cook a Moose
+HTTP::Engine::Cookbook - How to cook a HTTP::Engine
 
 =head1 DESCRIPTION
 
