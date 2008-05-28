@@ -1,6 +1,8 @@
 abstract: Web Server Gateway Interface and HTTP Server Engine Drivers (Yet Another Catalyst::Engine)
 author: Kazuhiro Osawa <ko@yappo.ne.jp>
 build_requires: 
+  File::Temp: 0.20
+  IO::Scalar: 0
   Test::More: 0
 distribution_type: module
 generated_by: Module::Install version 0.640
@@ -26,5 +28,6 @@ requires:
   Moose: 0.4
   MooseX::Types: 0
   Scalar::Util: 0
+  UNIVERSAL::require: 0
   URI: 0
-version: 0.0.8
+version: 0.0.9

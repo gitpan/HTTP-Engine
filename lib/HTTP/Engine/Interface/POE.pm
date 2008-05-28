@@ -31,7 +31,7 @@ sub run {
         Acceptor => sub {
             my ($socket, $remote_address, $remote_port) = @_[ARG0, ARG1, ARG2];
 
-            warn "ACCEPT FROM $remote_address, $remote_port";
+            # warn "ACCEPT FROM $remote_address, $remote_port";
 
             local %ENV = (
                 %init_env,
@@ -46,7 +46,11 @@ sub run {
             local *STDOUT = $socket;
             select STDOUT;
             do {
-                @ENV{qw/REQUEST_METHOD PATH_INFO SERVER_PROTOCOL/} = HTTP::Server::Simple->parse_request();
+                my ( $method, $request_uri, $proto ) = HTTP::Server::Simple->parse_request();
+                @ENV{qw/REQUEST_METHOD SERVER_PROTOCOL/} = ($method, $proto);
+                my @uri_split      = ( $request_uri =~ /([^?]*)(?:\?(.*))?/s );    # split at ?
+                $ENV{PATH_INFO}    = shift @uri_split;
+                $ENV{QUERY_STRING} = shift @uri_split if @uri_split && defined $uri_split[0];
             };
             do {
                 my $headers = HTTP::Server::Simple->parse_headers() or die "bad request";
@@ -99,7 +103,7 @@ internal use only
 
 =over 4
 
-=item port
+=item host
 
 The bind address of TCP server.
 

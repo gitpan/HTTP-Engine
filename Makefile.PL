@@ -30,6 +30,7 @@ all_from 'lib/HTTP/Engine.pm';
 requires 'Moose' => 0.40;
 requires 'MooseX::Types';
 requires 'Scalar::Util';
+requires 'UNIVERSAL::require';
 
 requires 'IO::Socket';
 
@@ -71,6 +72,9 @@ if (HAVE_MP) {
 }
 
 build_requires 'Test::More';
+build_requires 'IO::Scalar';
+build_requires 'File::Temp' => '0.20';
+
 use_test_base;
 auto_include;
 auto_install;
