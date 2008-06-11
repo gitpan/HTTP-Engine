@@ -1,7 +1,7 @@
 package HTTP::Engine;
 use Moose;
 use HTTP::Engine::Types::Core qw( Interface );
-our $VERSION = '0.0.10';
+our $VERSION = '0.0.11';
 use HTTP::Engine::Context;
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
@@ -10,7 +10,7 @@ use HTTP::Engine::RequestProcessor;
 
 has 'interface' => (
     is      => 'ro',
-    does    => 'Interface',
+    does    => Interface,
     coerce  => 1,
     handles => [ qw(run load_plugins) ],
 );
@@ -31,16 +31,14 @@ sub load_middlewares {
 sub load_middleware {
     my ($class, $middleware) = @_;
 
-    require UNIVERSAL::require;
-
     my $pkg;
     if (($pkg = $middleware) =~ s/^(\+)//) {
-        $pkg->require or die $@;
+        Class::MOP::load_class($pkg) or die $@;
     } else {
         $pkg = 'HTTP::Engine::Middleware::' . $middleware;
-        unless ($pkg->require) {
+        unless (eval { Class::MOP::load_class($pkg) }) {
             $pkg = 'HTTPEx::Middleware::' . $middleware;
-            $pkg->require or die $@;
+            Class::MOP::load_class($pkg);
         }
     }
 
@@ -58,7 +56,7 @@ sub load_middleware {
 1;
 __END__
 
-=for stopwords middlewares Middleware middleware
+=for stopwords middlewares Middleware middleware nothingmuch kan
 
 =encoding utf8
 
@@ -205,6 +203,10 @@ dann
 typester (Interface::FCGI)
 
 lopnor
+
+nothingmuch
+
+kan
 
 =head1 SEE ALSO
 

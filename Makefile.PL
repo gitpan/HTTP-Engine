@@ -27,10 +27,9 @@ if (HAVE_MP) {
 name 'HTTP-Engine';
 all_from 'lib/HTTP/Engine.pm';
 
-requires 'Moose' => 0.46;
-requires 'MooseX::Types';
+requires 'Moose' => 0.48;
+requires 'MooseX::Types' => 0.04;
 requires 'Scalar::Util';
-requires 'UNIVERSAL::require';
 
 requires 'IO::Socket';
 
@@ -39,7 +38,7 @@ requires 'IO::File';
 requires 'File::Spec::Unix';
 
 requires 'CGI::Simple::Cookie';
-requires 'HTTP::Body';
+requires 'HTTP::Body' => '0.9';
 requires 'HTTP::Headers';
 requires 'URI';
 
@@ -62,6 +61,12 @@ features(
     'Interface::Test' => [
         -default => 0,
         recommends_hack('HTTP::Request::AsCGI'),
+    ],
+
+    'Interface::POE' => [
+        -default => 0,
+        recommends_hack('POE' => '1.0002'),
+        recommends_hack('POE::Filter::HTTPD'),
     ],
 );
 
