@@ -1,7 +1,7 @@
 package HTTP::Engine;
 use Moose;
 use HTTP::Engine::Types::Core qw( Interface );
-our $VERSION = '0.0.12';
+our $VERSION = '0.0.13_1';
 use HTTP::Engine::Context;
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
@@ -47,9 +47,11 @@ sub load_middleware {
     }
 
     if ($pkg->meta->has_method('wrap')) {
+        HTTP::Engine::RequestProcessor->meta->make_mutable;
         HTTP::Engine::RequestProcessor->meta->add_around_method_modifier(
             call_handler => $pkg->meta->get_method('wrap')->body
         );
+        HTTP::Engine::RequestProcessor->meta->make_immutable;
     }
 }
 
@@ -181,6 +183,30 @@ you could load it as
 =item load_middlewares(qw/ middleware middleware /)
 
 Loads the given middleware into the HTTP::Engine.
+
+=back
+
+=head1 CONCEPT
+
+=over 4
+
+=item HTTP::Engine is Not
+
+    session manager
+    authentication manager
+    URL dispatcher
+    model manager
+    toy
+    black magick
+
+=item HTTP::Engine is
+
+    HTTP abstraction layer
+
+=item HTTP::Engine's ancestry
+
+    WSGI
+    Rack
 
 =back
 

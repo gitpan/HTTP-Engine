@@ -2,6 +2,7 @@ use inc::Module::Install;
 BEGIN
 {
     eval { 
+        die "not testing mod_perl" unless $ENV{TEST_MODPERL};
         require mod_perl2;
         require Apache::Test;
     };
@@ -27,7 +28,7 @@ if (HAVE_MP) {
 name 'HTTP-Engine';
 all_from 'lib/HTTP/Engine.pm';
 
-requires 'Moose' => 0.48;
+requires 'Moose' => 0.54;
 requires 'MooseX::Types' => 0.04;
 requires 'Scalar::Util';
 
@@ -41,6 +42,7 @@ requires 'CGI::Simple::Cookie';
 requires 'HTTP::Body' => '0.9';
 requires 'HTTP::Headers';
 requires 'URI';
+requires 'URI::QueryParam';
 
 features(
     'Interface::FCGI' => [
@@ -73,9 +75,9 @@ features(
 if (HAVE_MP) {
     Apache::TestMM::filter_args();
     Apache::TestMM::generate_script('t/TEST');
-    tests('t/*.t t/*/*.t t/*/*/*.t t/*/*/*/*.t t/modperl/basic.t');
+    tests('t/*.t t/*/*.t t/modperl/basic.t');
 } else {
-    tests('t/*.t t/*/*.t t/*/*/*.t t/*/*/*/*.t');
+    tests('t/*.t t/*/*.t ');
 }
 
 build_requires 'Test::More';
@@ -85,6 +87,5 @@ build_requires 'HTTP::Request::AsCGI';
 
 use_test_base;
 auto_include;
-auto_install;
 WriteAll;
 
