@@ -7,8 +7,7 @@ use URI::WithBase;
 use constant should_write_response_line => 0;
 
 sub run {
-    my ( $self, $request, $env ) = @_;
-    $env ||= \%ENV;
+    my ( $self, $request ) = @_;
 
     $self->handle_request(
         request_args => {
@@ -57,8 +56,8 @@ HTTP::Engine::Interface::Test - HTTP::Engine Test Interface
           module => 'Test',
       },
       request_handler => sub {
-          my $c = shift;
-          $c->res->body( Dumper($c) );
+          my $req = shift;
+          HTTP::Engine::Response->new( body => Dumper($req) );
       }
   )->run(HTTP::Request->new( GET => 'http://localhost/'), \%ENV);
 

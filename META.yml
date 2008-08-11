@@ -34,11 +34,11 @@ requires:
   HTTP::Headers: 0
   IO::File: 0
   IO::Socket: 0
-  Moose: 0.54
+  Moose: 0.55
   MooseX::Types: 0.04
   Scalar::Util: 0
   URI: 0
   URI::QueryParam: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.0.13_1
+version: 0.0.13_2

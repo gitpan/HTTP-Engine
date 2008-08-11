@@ -1,8 +1,7 @@
 package HTTP::Engine;
 use Moose;
 use HTTP::Engine::Types::Core qw( Interface );
-our $VERSION = '0.0.13_1';
-use HTTP::Engine::Context;
+our $VERSION = '0.0.13_2';
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
 use HTTP::Engine::Response;
@@ -15,46 +14,8 @@ has 'interface' => (
     handles => [ qw(run load_plugins) ],
 );
 
-sub import {
-    my($class, %args) = @_;
-    return unless $args{middlewares} && ref $args{middlewares} eq 'ARRAY';
-    $class->load_middlewares(@{ $args{middlewares} });
-}
-
-sub load_middlewares {
-    my ($class, @middlewares) = @_;
-    for my $middleware (@middlewares) {
-        $class->load_middleware( $middleware );
-    }
-}
-
-sub load_middleware {
-    my ($class, $middleware) = @_;
-
-    my $pkg;
-    if (($pkg = $middleware) =~ s/^(\+)//) {
-        Class::MOP::load_class($pkg) or die $@;
-    } else {
-        $pkg = 'HTTP::Engine::Middleware::' . $middleware;
-        unless (eval { Class::MOP::load_class($pkg) }) {
-            $pkg = 'HTTPEx::Middleware::' . $middleware;
-            Class::MOP::load_class($pkg);
-        }
-    }
-
-    if ($pkg->meta->has_method('setup')) {
-        $pkg->setup();
-    }
-
-    if ($pkg->meta->has_method('wrap')) {
-        HTTP::Engine::RequestProcessor->meta->make_mutable;
-        HTTP::Engine::RequestProcessor->meta->add_around_method_modifier(
-            call_handler => $pkg->meta->get_method('wrap')->body
-        );
-        HTTP::Engine::RequestProcessor->meta->make_immutable;
-    }
-}
-
+no Moose;
+__PACKAGE__->meta->make_immutable;
 1;
 __END__
 
@@ -83,8 +44,8 @@ HTTP::Engine - Web Server Gateway Interface and HTTP Server Engine Drivers (Yet 
 
   use Data::Dumper;
   sub handle_request {
-      my $c = shift;
-      $c->res->body( Dumper($c->req) );
+      my $req = shift;
+      HTTP::Engine::Response->new( body => Dumper($req) );
   }
 
 
@@ -92,6 +53,14 @@ HTTP::Engine - Web Server Gateway Interface and HTTP Server Engine Drivers (Yet 
 
 Version 0.0.x is a concept release, the internal interface is still fluid. 
 It is mostly based on the code of Catalyst::Engine.
+
+=head1 COMPATIBILITY
+
+version over 0.0.13_1 is incompatible of version under 0.0.13_1.
+
+using L<HTTP::Engine::Conpat> module if you want compatibility of version under 0.0.13_1.
+
+version over 0.0.13_1 is unsupported of context and middleware.
 
 =head1 DESCRIPTION
 
@@ -165,26 +134,6 @@ Or you can let HTTP::Engine instantiate the interface for you:
       }
     }
   )->run();
-
-=head1 MIDDLEWARES
-
-For all non-core middlewares (consult #codrepos first), use the HTTPEx::
-namespace. For example, if you have a plugin module named "HTTPEx::Middleware::Foo",
-you could load it as
-
-  use HTTP::Engine middlewares => [ qw( +HTTPEx::Plugin::Foo ) ];
-
-=head1 METHODS
-
-=over 4
-
-=item load_middleware(middleware)
-
-=item load_middlewares(qw/ middleware middleware /)
-
-Loads the given middleware into the HTTP::Engine.
-
-=back
 
 =head1 CONCEPT
 

@@ -3,6 +3,7 @@ use Moose;
 use File::stat;
 use Carp;
 use HTTP::Status ();
+use HTTP::Engine::ResponseFinalizer;
 
 with qw(HTTP::Engine::Role::ResponseWriter);
 
@@ -24,20 +25,21 @@ no Moose;
 my $CRLF = "\015\012";
 
 sub finalize {
-    my($self, $c) = @_;
-
-    local *STDOUT = $c->req->_connection->{output_handle};
-    croak "argument missing" unless $c;
+    my($self, $req, $res) = @_;
+    Carp::croak "argument missing" unless $res;
 
     delete $self->{_prepared_write};
 
-    $c->res->protocol( $c->req->protocol ) unless $c->res->protocol;
-    $c->res->finalize($c);
+    # HTTP/1.1's default Connection: close
+    if ($res->protocol && $res->protocol =~ m!1.1! && !!!$res->headers->header('Connection')) {
+        $res->headers->header( Connection => 'close' );
+    }
 
-    $self->_write($self->_response_line($c) . $CRLF) if $self->should_write_response_line;
-    $self->_write($c->res->headers->as_string($CRLF));
+    local *STDOUT = $req->_connection->{output_handle};
+    $self->_write($self->_response_line($res) . $CRLF) if $self->should_write_response_line;
+    $self->_write($res->headers->as_string($CRLF));
     $self->_write($CRLF);
-    $self->_output_body($c->res);
+    $self->_output_body($res);
 }
 
 sub _output_body  {
@@ -57,9 +59,9 @@ sub _output_body  {
 }
 
 sub _response_line {
-    my ( $self, $c ) = @_;
+    my ( $self, $res ) = @_;
 
-    join(" ", $c->res->protocol, $c->res->status, HTTP::Status::status_message($c->res->status));
+    join(" ", $res->protocol, $res->status, HTTP::Status::status_message($res->status));
 }
 
 sub _write {

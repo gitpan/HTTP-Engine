@@ -7,7 +7,6 @@ use HTTP::Body;
 use HTTP::Engine::Types::Core qw( Uri Header );
 use HTTP::Request;
 use URI::QueryParam;
-use URI::QueryParam;
 
 # Moose role merging is borked with attributes
 #with qw(HTTP::Engine::Request);
@@ -70,12 +69,6 @@ sub _build_connection_info {
     my $self = shift;
     $self->request_builder->_build_connection_info($self);
 }
-
-has context => (
-    is       => 'rw',
-    isa      => 'HTTP::Engine::Context',
-    weak_ref => 1,
-);
 
 has cookies => (
     is      => 'rw',
@@ -176,7 +169,7 @@ has hostname => (
 
 sub _build_hostname {
     my $self = shift;
-    $self->request_builder->_build_hostname;
+    $self->request_builder->_build_hostname($self);
 }
 
 has http_body => (
@@ -226,8 +219,13 @@ sub _build_parameters {
 has uploads => (
     is      => 'rw',
     isa     => 'HashRef',
-    default => sub { +{} },
+    lazy_build => 1,
 );
+
+sub _build_uploads {
+    my $self = shift;
+    $self->request_builder->_prepare_uploads($self);
+}
 
 no Moose;
 
@@ -377,7 +375,8 @@ HTTP::Engine::Request - http request object
 
 =head1 SYNOPSIS
 
-    $c->req
+    sub handle_request {
+        my $req = shift;
 
 =head1 ATTRIBUTES
 
@@ -386,10 +385,6 @@ HTTP::Engine::Request - http request object
 =item address
 
 Returns the IP address of the client.
-
-=item context
-
-Returns the HTTP::Context(internal use only)
 
 =item cookies
 
@@ -479,22 +474,22 @@ Shortcut to $req->headers->user_agent.
 
 A convenient method to access $req->cookies.
 
-    $cookie  = $c->req->cookie('name');
-    @cookies = $c->req->cookie;
+    $cookie  = $req->cookie('name');
+    @cookies = $req->cookie;
 
 =item param
 
 Returns GET and POST parameters with a CGI.pm-compatible param method. This 
-is an alternative method for accessing parameters in $c->req->parameters.
+is an alternative method for accessing parameters in $req->parameters.
 
-    $value  = $c->req->param( 'foo' );
-    @values = $c->req->param( 'foo' );
-    @params = $c->req->param;
+    $value  = $req->param( 'foo' );
+    @values = $req->param( 'foo' );
+    @params = $req->param;
 
 Like L<CGI>, and B<unlike> earlier versions of Catalyst, passing multiple
 arguments to this method, like this:
 
-    $c->req->param( 'foo', 'bar', 'gorch', 'quxx' );
+    $req->param( 'foo', 'bar', 'gorch', 'quxx' );
 
 will set the parameter C<foo> to the multiple values C<bar>, C<gorch> and
 C<quxx>. Previously this would have added C<bar> as another value to C<foo>
@@ -509,11 +504,11 @@ Returns the path, i.e. the part of the URI after $req->base, for the current req
 
 A convenient method to access $req->uploads.
 
-    $upload  = $c->req->upload('field');
-    @uploads = $c->req->upload('field');
-    @fields  = $c->req->upload;
+    $upload  = $req->upload('field');
+    @uploads = $req->upload('field');
+    @fields  = $req->upload;
 
-    for my $upload ( $c->req->upload('field') ) {
+    for my $upload ( $req->upload('field') ) {
         print $upload->filename;
     }
 
