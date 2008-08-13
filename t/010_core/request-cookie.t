@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More tests => 4;
+use Test::More tests => 7;
 use t::Utils;
 use HTTP::Engine;
 use HTTP::Request;
@@ -18,13 +18,17 @@ do {
     );
 
     # do test
-    run_engine($req, sub {
+    run_engine {
         my $req = shift;
+	use Data::Dumper;
+	is '2', $req->cookie;
+        is $req->cookie('undef'), undef;
+        is $req->cookie('undef', 'undef'), undef;
         is $req->cookie('Foo')->value, 'Bar';
         is $req->cookie('Bar')->value, 'Baz';
         is_deeply $req->cookies, {Foo => 'Foo=Bar; path=/', Bar => 'Bar=Baz; path=/'};
         return ok_response;
-    });
+    } $req;
 };
 
 # no Cookie header
@@ -36,10 +40,10 @@ do {
     );
 
     # do test
-    run_engine($req, sub {
+    run_engine {
         my $req = shift;
         is_deeply $req->cookies, {};
         return ok_response;
-    });
+    } $req;
 };
 

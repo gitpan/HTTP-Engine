@@ -246,6 +246,7 @@ sub cookie {
         return undef unless exists $self->cookies->{$name}; ## no critic.
         return $self->cookies->{$name};
     }
+    return;
 }
 
 sub param {
@@ -266,7 +267,7 @@ sub param {
               ? ( $self->parameters->{$param} )
                   : $self->parameters->{$param};
         }
-    } elsif (@_ > 1) {
+    } else {
         my $field = shift;
         $self->parameters->{$field} = [@_];
     }
@@ -290,9 +291,7 @@ sub upload {
               ? ( $self->uploads->{$upload} )
           : $self->uploads->{$upload};
         }
-    }
-
-    if (@_ > 1) {
+    } else {
         while ( my($field, $upload) = splice(@_, 0, 2) ) {
             if ( exists $self->uploads->{$field} ) {
                 for ( $self->uploads->{$field} ) {

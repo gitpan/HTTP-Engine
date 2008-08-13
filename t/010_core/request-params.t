@@ -3,7 +3,7 @@ use warnings;
 use Test::Base;
 use HTTP::Engine::Request;
 
-plan tests => 3*blocks;
+plan tests => 4*blocks;
 
 filters {
     parameters => [qw/yaml/],
@@ -15,6 +15,7 @@ run {
     my $block = shift;
     my $req = HTTP::Engine::Request->new( parameters => $block->parameters );
     is_deeply $req->params, $block->parameters;
+    is scalar($req->param), scalar(keys %{  $block->parameters });
 
     my @options = $block->options;
     @options = @{ $block->options } if ref $block->options;

@@ -1,7 +1,7 @@
 package HTTP::Engine;
 use Moose;
 use HTTP::Engine::Types::Core qw( Interface );
-our $VERSION = '0.0.13_2';
+our $VERSION = '0.0.13';
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
 use HTTP::Engine::Response;
@@ -56,11 +56,11 @@ It is mostly based on the code of Catalyst::Engine.
 
 =head1 COMPATIBILITY
 
-version over 0.0.13_1 is incompatible of version under 0.0.13_1.
+version over 0.0.13 is incompatible of version under 0.0.12.
 
-using L<HTTP::Engine::Conpat> module if you want compatibility of version under 0.0.13_1.
+using L<HTTP::Engine::Compat> module if you want compatibility of version under 0.0.12.
 
-version over 0.0.13_1 is unsupported of context and middleware.
+version 0.0.13 is unsupported of context and middleware.
 
 =head1 DESCRIPTION
 
@@ -79,6 +79,19 @@ HTTP::Engine::Response object.
 HTTP::Engine will handle absorbing the differences between the environment,
 the I/O, etc. Your application can focus on creating response objects
 (which is pretty much what your typical webapp is doing)
+
+
+The community can be found via:
+
+  IRC: irc.perl.org#http-engine irc.freenode.net#coderepos
+
+  Wiki Page: http://coderepos.org/share/wiki/HTTP%3A%3AEngine
+
+  SVN: http://svn.coderepos.org/share/lang/perl/HTTP-Engine  
+
+  Trac: http://coderepos.org/share/browser/lang/perl/HTTP-Engine
+
+  Mailing list: http://lists.scsys.co.uk/cgi-bin/mailman/listinfo/http-engine
 
 =head1 INTERFACES
 
@@ -185,8 +198,8 @@ kan
 
 =head1 SEE ALSO
 
-wiki page L<http://coderepos.org/share/wiki/HTTP%3A%3AEngine>
-
+L<HTTP::Engine::Compat>,
+L<HTTPEx::Declare>,
 L<Moose>
 
 =head1 REPOSITORY

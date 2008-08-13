@@ -71,8 +71,8 @@ sub daemonize_all (&@) {
     }
 }
 
-sub run_engine {
-    my ($req, $cb) = @_;
+sub run_engine (&@) {
+    my ($cb, $req, %args) = @_;
 
     HTTP::Engine->new(
         interface => {
@@ -80,7 +80,7 @@ sub run_engine {
             args => { },
             request_handler => $cb,
         },
-    )->run($req);
+    )->run($req, %args);
 }
 
 sub ok_response {

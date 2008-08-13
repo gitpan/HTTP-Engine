@@ -48,12 +48,14 @@ sub _build_uri  {
 
     my $scheme = $req->secure ? 'https' : 'http';
     my $host   = $env->{HTTP_HOST}   || $env->{SERVER_NAME};
-    my $port   = $env->{SERVER_PORT} || ( $req->secure ? 443 : 80 );
+    # my $port   = $env->{SERVER_PORT} || ( $req->secure ? 443 : 80 );
+    my $port   = $env->{SERVER_PORT};
+    $port = ( $req->secure ? 443 : 80 ) unless $port; # dirty code for coverage_test 
 
     my $base_path;
     if (exists $env->{REDIRECT_URL}) {
         $base_path = $env->{REDIRECT_URL};
-        $base_path =~ s/$env->{PATH_INFO}$//;
+        $base_path =~ s/$env->{PATH_INFO}$// if exists $env->{PATH_INFO};
     } else {
         $base_path = $env->{SCRIPT_NAME} || '/';
     }
@@ -73,6 +75,7 @@ sub _build_uri  {
 
     # set the base URI
     # base must end in a slash
+    $base_path =~ s{^/+}{};
     $base_path .= '/' unless $base_path =~ /\/$/;
     my $base = $uri->clone;
     $base->path_query($base_path);

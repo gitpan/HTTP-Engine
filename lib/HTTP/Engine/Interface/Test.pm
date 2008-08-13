@@ -7,7 +7,7 @@ use URI::WithBase;
 use constant should_write_response_line => 0;
 
 sub run {
-    my ( $self, $request ) = @_;
+    my ( $self, $request, %args ) = @_;
 
     $self->handle_request(
         request_args => {
@@ -31,6 +31,7 @@ sub run {
         },
         response_args => {
         },
+        %args,
     );
 
     $self->response_writer->get_response; # FIXME yuck, should be a ret from handle_request
