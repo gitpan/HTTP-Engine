@@ -4,7 +4,7 @@ use Moose::Role;
 use HTTP::Engine::ResponseWriter;
 use HTTP::Engine::Types::Core qw( Handler );
 
-requires qw(run should_write_response_line);
+requires qw(run);
 
 has request_handler => (
     is       => 'rw',
@@ -27,7 +27,7 @@ has request_processor => (
     is         => 'ro',
     does       => 'HTTP::Engine::Role::RequestProcessor',
     lazy_build => 1,
-    handles    => [qw/handle_request load_plugins/],
+    handles    => [qw/handle_request/],
 );
 
 sub _build_request_processor {
@@ -83,9 +83,7 @@ has response_writer => (
 sub _build_response_writer {
     my $self = shift;
 
-    $self->_class_with_roles("response_writer")->new(
-        should_write_response_line => $self->should_write_response_line,
-    );
+    $self->_class_with_roles("response_writer")->new();
 }
 
 sub _default_class {
@@ -161,6 +159,8 @@ sub _create_anon_class {
 
     # apply the roles to the class
     Moose::Util::apply_all_roles( $anon->name, @roles );
+
+    $anon->meta->make_immutable;
 
     return $anon;
 }

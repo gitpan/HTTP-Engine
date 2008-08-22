@@ -1,7 +1,6 @@
 package HTTP::Engine::Interface::FCGI;
 use Moose;
 with 'HTTP::Engine::Role::Interface';
-use constant should_write_response_line => 0;
 use constant RUNNING_IN_HELL => $^O eq 'MSWin32';
 use FCGI;
 
@@ -115,8 +114,15 @@ sub run {
             $env{PATH_INFO} ||= delete $env{SCRIPT_NAME};
         }
 
-        local %ENV = %env;
-        $self->handle_request();
+        $self->handle_request(
+            request_args => {
+                _connection => {
+                    input_handle  => *STDIN,
+                    output_handle => *STDOUT,
+                    env           => \%env,
+                },
+            }
+        );
 
         $proc_manager && $proc_manager->pm_post_dispatch();
     }
@@ -136,27 +142,6 @@ sub daemon_detach {
     POSIX::setsid();
 }
 
-
-use HTTP::Engine::ResponseWriter;
-HTTP::Engine::ResponseWriter->meta->make_mutable;
-HTTP::Engine::ResponseWriter->meta->add_method( _write => sub {
-    my($self, $buffer) = @_;
-
-    unless ( $self->{_prepared_write} ) {
-        $self->_prepare_write;
-        $self->{_prepared_write} = 1;
-    }
-
-    # XXX: We can't use Engine's write() method because syswrite
-    # appears to return bogus values instead of the number of bytes
-    # written: http://www.fastcgi.com/om_archive/mail-archive/0128.html
-
-    # FastCGI does not stream data properly if using 'print $handle',
-    # but a syswrite appears to work properly.
-    *STDOUT->syswrite($buffer);
-});
-HTTP::Engine::ResponseWriter->meta->make_immutable;
-
 1;
 __END__
 
@@ -165,11 +150,6 @@ __END__
 =head1 NAME
 
 HTTP::Engine::Interface::FCGI - FastCGI interface for HTTP::Engine
-
-=head1 SYNOPSIS
-
-    HTTP::Engine::Interface::FCGI->new(
-    );
 
 =head1 ATTRIBUTES
 
@@ -192,17 +172,6 @@ HTTP::Engine::Interface::FCGI - FastCGI interface for HTTP::Engine
 =item listen
 
 =back
-
-=head1 METHODS
-
-=over 4
-
-=item run
-
-internal use only
-
-=back
-
 
 =head1 AUTHORS
 

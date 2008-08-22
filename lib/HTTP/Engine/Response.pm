@@ -8,6 +8,16 @@ use HTTP::Engine::Types::Core qw( Header );
 # Moose role merging is borked with attributes
 #with qw(HTTP::Engine::Response);
 
+sub BUILD {
+    my ( $self, $param ) = @_;
+
+    for my $field (qw(content_type)) {
+        if ( my $val = $param->{$field} ) {
+            $self->$field($val);
+        }
+    }
+}
+
 has body => (
     is      => 'rw',
     isa     => 'Any',
@@ -34,6 +44,7 @@ has status => (
 has headers => (
     is      => 'rw',
     isa     => Header,
+    coerce  => 1,
     default => sub { HTTP::Headers->new },
     handles => [ qw(content_encoding content_length content_type header) ],
 );
@@ -120,13 +131,6 @@ Sets or returns the HTTP status.
 Returns an L<HTTP::Headers> object, which can be used to set headers.
 
     $res->headers->header( 'X-HTTP-Engine' => $HTTP::Engine::VERSION );
-
-=item redirect
-
-Causes the response to redirect to the specified URL.
-
-    $res->redirect( 'http://slashdot.org' );
-    $res->redirect( 'http://slashdot.org', 307 );
 
 =item set_http_response
 

@@ -1,37 +1,28 @@
 package HTTP::Engine::Interface::CGI;
 use Moose;
 with 'HTTP::Engine::Role::Interface';
-use constant should_write_response_line => 0;
 
 sub run {
     my ($self) = @_;
-    $self->handle_request();
+    $self->handle_request(
+        request_args => {
+            _connection => {
+                env           => \%ENV,
+                input_handle  => \*STDIN,
+                output_handle => \*STDOUT,
+            },
+        },
+    );
 }
 
 1;
 __END__
-
-=for stopwords 
 
 =for stopwords CGI Naoki Nyarla Okamura yaml
 
 =head1 NAME
 
 HTTP::Engine::Interface::CGI - CGI interface for HTTP::Engine
-
-=head1 SYNOPSIS
-
-    HTTP::Engine::Interface::CGI->new();
-
-=head1 METHODS
-
-=over 4
-
-=item run
-
-internal use only
-
-=back
 
 =head1 AUTHOR
 

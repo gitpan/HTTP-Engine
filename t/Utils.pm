@@ -3,55 +3,26 @@ package t::Utils;
 use strict;
 use warnings;
 use HTTP::Engine;
+use HTTP::Request::AsCGI;
+use HTTP::Engine::RequestBuilder;
+use Test::TCP qw/test_tcp empty_port/;
 
 use IO::Socket::INET;
 
 use Sub::Exporter -setup => {
-    exports => [qw/ empty_port daemonize daemonize_all interfaces run_engine ok_response check_port wait_port /],
+    exports => [qw/ daemonize_all interfaces run_engine ok_response req /],
     groups  => { default => [':all'] }
 };
 
-sub empty_port {
-    my $port = shift || 10000;
-    $port = 19000 unless $port =~ /^[0-9]+$/ && $port < 19000;
-
-    while ($port++ < 20000) {
-        my $sock = IO::Socket::INET->new(
-            Listen    => 5,
-            LocalAddr => 'localhost',
-            LocalPort => $port,
-            Proto     => 'tcp'
-        );
-        return $port if $sock;
-    }
-    die "empty port not found";
-}
-
-sub daemonize (&@) { goto _daemonize }
-sub _daemonize {
-    my($client, %args) = @_;
-
-    if (my $pid = fork()) {
-        # parent.
-        sleep 1; # wait startup child process
-
-        $client->();
-
-        kill TERM => $pid;
-        waitpid($pid, 0);
-    } elsif ($pid == 0) {
-        # child
-        my $poe_kernel_run = delete $args{poe_kernel_run};
-        HTTP::Engine->new(%args)->run;
-        POE::Kernel->run() if $poe_kernel_run;
-    } else {
-        die "cannot fork";
-    }
-}
-
 my @interfaces; # memoize.
 sub interfaces() {
+    if (my $e = $ENV{HE_TEST_INTERFACES}) {
+        @interfaces = split /,/, $e;
+    }
+
     unless (@interfaces) {
+        push @interfaces, 'CGI'          if eval "use HTTP::Server::Simple; 1;";
+        push @interfaces, 'FCGI'         if $ENV{TEST_LIGHTTPD};
         push @interfaces, 'Standalone';
         push @interfaces, 'ServerSimple' if eval "use HTTP::Server::Simple; 1;";
         push @interfaces, 'POE'          if eval "use POE; 1;";
@@ -59,15 +30,86 @@ sub interfaces() {
     return @interfaces;
 }
 
-sub daemonize_all (&@) {
-    my($client, %args) = @_;
+sub daemonize_all (&$@) {
+    my($client, $codesrc) = @_;
 
+    my $port = empty_port();
+
+    my $code = eval $codesrc;
+    die $@ if $@;
+    my %args = $code->($port);
     my $poe_kernel_run = delete $args{poe_kernel_run};
 
-    for my $interface (interfaces) {
-        $args{interface}->{module} = $interface;
-        $args{poe_kernel_run} = ($interface eq 'POE') if $poe_kernel_run;
-        _daemonize $client => %args;
+    my @interfaces = interfaces;
+    for my $interface (@interfaces) {
+        my $client_cb = sub { $client->(@_, $interface) };
+        if ($interface eq 'FCGI') {
+            require t::FCGIUtils;
+            t::FCGIUtils->import;
+            test_lighty(
+                qq{#!/usr/bin/perl
+                use strict;
+                use warnings;
+                use HTTP::Engine;
+                my \$code = $codesrc;
+                my \%args = \$code->($port);
+                \$args{interface}->{module} = 'FCGI';
+
+                HTTP::Engine->new(
+                    \%args
+                )->run;
+                },
+                $client_cb,
+                $port
+            );
+        } elsif ($interface eq 'CGI') {
+            require HTTP::Server::Simple::CGI;
+            test_tcp(
+                client => $client_cb,
+                server => sub {
+                    # XXX normal CGI doesn't needs response line, but H::S::S::CGI needs this. we needs hack :)
+                    require HTTP::Engine::Interface::CGI;
+
+                    $args{interface}->{args}->{request_handler} = $args{interface}->{request_handler};
+                    my $interface = HTTP::Engine::Interface::CGI->new($args{interface}->{args});
+                    Moose::Util::apply_all_roles(
+                        $interface->response_writer,
+                        'HTTP::Engine::Role::ResponseWriter::ResponseLine'
+                    );
+                    delete $args{interface};
+
+                    Moose::Meta::Class
+                        ->create_anon_class(
+                            superclasses => ['HTTP::Server::Simple::CGI'],
+                            methods => {
+                                handler => sub {
+                                    HTTP::Engine->new(
+                                        %args,
+                                        interface => $interface,
+                                    )->run;
+                                },
+                            },
+                            cache => 1
+                        )->new_object(
+                        )->new(
+                            $port
+                        )->run;
+                },
+                port => $port,
+            );
+        } else {
+            $args{interface}->{module} = $interface;
+            $args{poe_kernel_run} = ($interface eq 'POE') if $poe_kernel_run;
+            test_tcp(
+                client => $client_cb,
+                server => sub {
+                    my $poe_kernel_run = delete $args{poe_kernel_run};
+                    HTTP::Engine->new(%args)->run;
+                    POE::Kernel->run() if $poe_kernel_run;
+                },
+                port   => $port,
+            );
+        }
     }
 }
 
@@ -90,32 +132,17 @@ sub ok_response {
     );
 }
 
-sub check_port {
-    my ( $port ) = @_;
-
-    my $remote = IO::Socket::INET->new(
-        Proto    => "tcp",
-        PeerAddr => '127.0.0.1',
-        PeerPort => $port
+sub req {
+    my %args = @_;
+    HTTP::Engine::Request->new(
+        request_builder => HTTP::Engine::RequestBuilder->new(),
+        _connection => {
+            env           => \%ENV,
+            input_handle  => \*STDIN,
+            output_handle => \*STDOUT,
+        },
+        %args
     );
-    if ($remote) {
-        close $remote;
-        return 1;
-    }
-    else {
-        return 0;
-    }
-}
-
-sub wait_port {
-    my $port = shift;
-
-    my $retry = 10;
-    while ($retry--) {
-        return if check_port($port);
-        sleep 1;
-    }
-    die "cannot open port: $port";
 }
 
 1;

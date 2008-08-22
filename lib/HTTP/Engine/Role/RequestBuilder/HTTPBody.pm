@@ -40,7 +40,7 @@ sub _build_raw_body {
 sub _build_read_state {
     my($self, $req) = @_;
 
-    my $length = $req->header('Content-Length') || 0;
+    my $length = $req->content_length || 0;
     my $type   = $req->header('Content-Type');
 
     my $body = HTTP::Body->new($type, $length);
@@ -94,22 +94,5 @@ sub _prepare_uploads  {
     return \%uploads;
 }
 
-__PACKAGE__
-
-__END__
-
-=pod
-
-=head1 NAME
-
-HTTP::Engine::Role::RequestBuilder::HTTPBody - 
-
-=head1 SYNOPSIS
-
-	use HTTP::Engine::Role::RequestBuilder::HTTPBody;
-
-=head1 DESCRIPTION
-
-=cut
-
+1;
 

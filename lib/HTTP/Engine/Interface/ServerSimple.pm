@@ -1,7 +1,6 @@
 package HTTP::Engine::Interface::ServerSimple;
 use Moose;
 with 'HTTP::Engine::Role::Interface';
-use constant should_write_response_line => 1;
 use HTTP::Server::Simple 0.33;
 use HTTP::Server::Simple::CGI;
 
@@ -32,7 +31,15 @@ sub run {
             superclasses => ['HTTP::Server::Simple::CGI'],
             methods => {
                 handler => sub {
-                    $self->handle_request();
+                    $self->handle_request(
+                        request_args => {
+                            _connection => {
+                                env           => \%ENV,
+                                input_handle  => \*STDIN,
+                                output_handle => \*STDOUT,
+                            },
+                        },
+                    );
                 },
                 net_server => sub { $self->net_server },
             },
@@ -45,29 +52,13 @@ sub run {
     $server->run;
 }
 
+__PACKAGE__->meta->make_immutable;
 1;
 __END__
 
 =head1 NAME
 
 HTTP::Engine::Interface::ServerSimple - HTTP::Server::Simple interface for HTTP::Engine
-
-=head1 SYNOPSIS
-
-    HTTP::Engine::Interface::ServerSimple->new(
-        host => '0.0.0.0',
-        port => 5963,
-    );
-
-=head1 METHODS
-
-=over 4
-
-=item run
-
-internal use only
-
-=back
 
 =head1 DESCRIPTION
 

@@ -15,6 +15,7 @@ use Apache2::Connection;
 use Apache2::RequestRec;
 use Apache2::RequestUtil;
 use Apache2::ServerRec;
+use APR::Table;
 use HTTP::Engine;
 
 extends 'HTTP::Engine::Interface::CGI';
@@ -47,12 +48,35 @@ sub handler : method
     my $server = $r->server;
     my $connection = $r->connection;
 
-    $ENV{REQUEST_METHOD} = $r->method();
-    $ENV{REMOTE_ADDR}    = $connection->remote_ip();
-    $ENV{SERVER_PORT}    = $server->port();
-    $ENV{QUERY_STRING}   = $r->args();
-
-    $engine->interface->request_processor->handle_request();
+    $engine->interface->request_processor->handle_request(
+        request_args => {
+            headers => HTTP::Headers->new(
+                %{ $r->headers_in }
+            ),
+            _connection => {
+                input_handle   => \*STDIN,
+                output_handle  => \*STDOUT,
+                env            => {
+                    REQUEST_METHOD => $r->method(),
+                    REMOTE_ADDR    => $connection->remote_ip(),
+                    SERVER_PORT    => $server->port(),
+                    QUERY_STRING   => $r->args() || '',
+                    HTTP_HOST      => $r->hostname(),
+                    SERVER_PROTOCOL => $r->protocol,
+                },
+                apache_request => $r,
+            },
+            connection_info => {
+                address    => $connection->remote_ip(),
+                protocol   => $r->protocol,
+                method     => $r->method,
+                port       => $server->port,
+                user       => $r->user,
+                https_info => undef, # TODO: implement
+            },
+            hostname => $r->hostname,
+        },
+    );
 
     return &Apache2::Const::OK;
 }
@@ -63,7 +87,7 @@ sub create_engine
 
     HTTP::Engine->new(
         interface => HTTP::Engine::Interface::ModPerl->new(
-            request_handler   => sub { warn "hoge" },
+            request_handler   => sub { HTTP::Engine::Response->new(status => 200) },
         )
     );
 }
@@ -76,23 +100,15 @@ __END__
 
 HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
 
-=head1 SYNOPSIS
-
-    TBD
-
-=head1 METHODS
-
-=over 4
-
-=item run
-
-internal use only
-
-=back
-
 =head1 AUTHORS
 
 Daisuke Maki
+
+Tokuhiro Matsuno
+
+=head1 KNOWN BUGS
+
+    cannot get https_info
 
 =head1 SEE ALSO
 

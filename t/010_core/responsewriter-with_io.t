@@ -2,14 +2,26 @@ package DummyIO;
 use overload qw{""} => sub { 'bless' };
 sub new { bless {}, shift }
 
+package DummyRW;
+use Moose;
+extends 'HTTP::Engine::ResponseWriter';
+with qw(
+    HTTP::Engine::Role::ResponseWriter
+    HTTP::Engine::Role::ResponseWriter::ResponseLine
+    HTTP::Engine::Role::ResponseWriter::OutputBody
+    HTTP::Engine::Role::ResponseWriter::WriteSTDOUT
+);
+
 package main;
 use Test::Base;
 use IO::Scalar;
 use HTTP::Engine::ResponseWriter;
 use HTTP::Engine::Response;
 use HTTP::Engine::Request;
+use HTTP::Engine::RequestBuilder;
 use HTTP::Response;
 use File::Temp qw/:seekable/;
+use t::Utils;
 
 plan skip_all => 'File::Temp 0.20 required for this test' unless $File::Temp::VERSION >= 0.20;
 
@@ -32,9 +44,9 @@ __END__
 
 === normal io
 --- input
-my $writer = HTTP::Engine::ResponseWriter->new(
-    should_write_response_line => 1,
-);
+use t::Utils;
+
+my $writer = DummyRW->new();
 
 my $tmp = File::Temp->new();
 $tmp->write("OK!");
@@ -43,7 +55,7 @@ $tmp->seek(0, File::Temp::SEEK_SET);
 
 tie *STDOUT, 'IO::Scalar', \my $out;
 
-my $req = HTTP::Engine::Request->new(
+my $req = req(
     protocol => 'HTTP/1.1',
     method => 'GET',
 );
@@ -65,15 +77,15 @@ OK!
 
 === dummy io
 --- input
-my $writer = HTTP::Engine::ResponseWriter->new(
-    should_write_response_line => 1,
-);
+use t::Utils;
+
+my $writer = DummyRW->new();
 
 my $tmp = DummyIO->new;
 
 tie *STDOUT, 'IO::Scalar', \my $out;
 
-my $req = HTTP::Engine::Request->new(
+my $req = req(
     protocol => 'HTTP/1.1',
     method => 'GET',
 );
@@ -95,10 +107,9 @@ bless
 
 === big size
 --- input
-my $writer = HTTP::Engine::ResponseWriter->new(
-    should_write_response_line => 1,
-);
+use t::Utils;
 
+my $writer = DummyRW->new();
 
 my $ftmp = File::Temp->new();
 $ftmp->write('dummy'x5000);
@@ -108,7 +119,7 @@ $ftmp->seek(0, File::Temp::SEEK_SET);
 open my $tmp, '<', $ftmp->filename or die $!;
 tie *STDOUT, 'IO::Scalar', \my $out;
 
-my $req = HTTP::Engine::Request->new(
+my $req = req(
     protocol => 'HTTP/1.1',
     method => 'GET',
 );
@@ -131,13 +142,13 @@ Status: 200
 
 === no io
 --- input
-my $writer = HTTP::Engine::ResponseWriter->new(
-    should_write_response_line => 1,
-);
+use t::Utils;
+
+my $writer = DummyRW->new();
 
 tie *STDOUT, 'IO::Scalar', \my $out;
 
-my $req = HTTP::Engine::Request->new(
+my $req = req(
     protocol => 'HTTP/1.1',
     method => 'GET',
 );
@@ -160,16 +171,16 @@ OK!
 
 === broken writer
 --- input
-my $writer = HTTP::Engine::ResponseWriter->new(
-    should_write_response_line => 1,
-);
+use t::Utils;
+
+my $writer = DummyRW->new();
 
 my $tmp = File::Temp->new();
 $tmp->write("OK!");
 $tmp->flush();
 $tmp->seek(0, File::Temp::SEEK_SET);
 
-my $req = HTTP::Engine::Request->new(
+my $req = req(
     protocol => 'HTTP/1.1',
     method => 'GET',
 );
@@ -179,7 +190,7 @@ HTTP::Engine::ResponseFinalizer->finalize( $req, $res );
 my $write;
 do {
     no warnings 'redefine';
-    local *HTTP::Engine::ResponseWriter::_write = sub { $write++; undef };
+    local *DummyRW::write = sub { $write++; undef };
     $writer->finalize( $req, $res );
 };
 $write ? 'OK' : 'NG';

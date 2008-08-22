@@ -2,6 +2,8 @@ use strict;
 use warnings;
 use Test::Base;
 use HTTP::Engine::Request;
+use HTTP::Engine::RequestBuilder;
+use t::Utils;
 
 plan tests => 4*blocks;
 
@@ -13,7 +15,7 @@ filters {
 
 run {
     my $block = shift;
-    my $req = HTTP::Engine::Request->new( parameters => $block->parameters );
+    my $req = req( parameters => $block->parameters );
     is_deeply $req->params, $block->parameters;
     is scalar($req->param), scalar(keys %{  $block->parameters });
 

@@ -1,12 +1,13 @@
 package HTTP::Engine::Interface::POE;
 use Moose;
 with 'HTTP::Engine::Role::Interface';
-use constant should_write_response_line => 1;
 use POE qw/
     Component::Server::TCP
 /;
-use POE::Filter::HTTPD;
+use HTTP::Engine::Interface::POE::Filter;
 use HTTP::Request::AsCGI;
+use IO::Scalar;
+use URI::WithBase;
 
 has host => (
     is      => 'ro',
@@ -32,11 +33,13 @@ sub run {
     POE::Component::Server::TCP->new(
         Port         => $self->port,
         Address      => $self->host,
-        ClientFilter => 'POE::Filter::HTTPD',
+        ClientFilter => 'HTTP::Engine::Interface::POE::Filter',
         ( $self->alias ? ( Alias => $self->alias ) : () ),
         ClientInput  => _client_input($self),
     );
 }
+
+our $CLIENT;
 
 sub _client_input {
     my $self = shift;
@@ -49,19 +52,49 @@ sub _client_input {
         # while parsing the client's HTTP request.  It's easiest to send
         # the responses as they are and finish up.
         if ( $request->isa('HTTP::Response') ) {
-            $heap->{client}->put($request);
+            $heap->{client}->put($request->as_string);
             $kernel->yield('shutdown');
             return;
         }
 
         # follow is normal workflow.
-        my $ascgi = HTTP::Request::AsCGI->new($request)->setup;
         do {
-            $self->handle_request();
-        };
-        $ascgi->restore;
+            local $CLIENT = $heap->{client};
 
-        $heap->{client}->put($ascgi->response);
+            $self->handle_request(
+                request_args => {
+                    headers => $request->headers,
+                    uri     => URI::WithBase->new(do {
+                        my $uri = $request->uri;
+                        $uri->scheme('http');
+                        $uri->host($self->host);
+                        $uri->port($self->port);
+
+                        my $b = $uri->clone;
+                        $b->path_query('/');
+
+                        ($uri, $b);
+                    }),
+                    connection_info => {
+                        address    => $heap->{remote_ip},
+                        method     => $request->method,
+                        port       => $self->port,
+                        user       => undef,
+                        https_info => 'OFF',
+                        protocol   => $request->protocol(),
+                    },
+                    _connection => {
+                        input_handle  => do {
+                            my $buf = $request->content;
+                            IO::Scalar->new( \$buf );
+                        },
+                        output_handle => undef,
+                        env           => \%ENV,
+                    },
+                },
+            );
+        };
+
         $kernel->yield('shutdown');
     }
 }
@@ -76,16 +109,6 @@ HTTP::Engine::Interface::POE - POE interface for HTTP::Engine.
 =head1 DESCRIPTION
 
 This is POE interface for HTTP::Engine.
-
-=head1 METHODS
-
-=over 4
-
-=item run
-
-internal use only
-
-=back
 
 =head1 ATTRIBUTES
 

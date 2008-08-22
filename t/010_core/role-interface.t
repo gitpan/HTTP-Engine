@@ -7,7 +7,6 @@ use Moose;
 with 'HTTP::Engine::Role::Interface';
 no Moose;
 
-sub should_write_response_line { 0 }
 sub run {}
 
 sub request_builder_class { 't::Interface::Dummy::RequestResponse' }
@@ -23,14 +22,10 @@ with qw(
     HTTP::Engine::Role::RequestBuilder::HTTPBody
     HTTP::Engine::Role::ResponseWriter
 );
-sub _build_connection {
-    return {
-        env           => \%ENV,
-        input_handle  => \*STDIN,
-        output_handle => \*STDOUT,
-    }
-}
+
 sub finalize {}
+sub write {}
+sub output_body {}
 no Moose;
 
 package t::Role;

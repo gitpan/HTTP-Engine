@@ -3,8 +3,7 @@ use Moose;
 with 'HTTP::Engine::Role::Interface';
 
 use URI::WithBase;
-
-use constant should_write_response_line => 0;
+use IO::Scalar;
 
 sub run {
     my ( $self, $request, %args ) = @_;
@@ -18,18 +17,18 @@ sub run {
                 $base;
             },
             headers    => $request->headers,
-            raw_body   => $request->content,
             method     => $request->method,
+            protocol   => $request->protocol,
             address    => "127.0.0.1",
             port       => "80",
-            protocol   => "HTTP/1.0",
             user       => undef,
             https_info => undef,
             _builder_params => {
                 request => $request,
             },
-        },
-        response_args => {
+            _connection => {
+                input_handle  => IO::Scalar->new( \( $request->content ) ),
+            },
         },
         %args,
     );
@@ -61,8 +60,6 @@ HTTP::Engine::Interface::Test - HTTP::Engine Test Interface
           HTTP::Engine::Response->new( body => Dumper($req) );
       }
   )->run(HTTP::Request->new( GET => 'http://localhost/'), \%ENV);
-
-  
 
 =head1 DESCRIPTION
 

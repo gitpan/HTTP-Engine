@@ -6,8 +6,6 @@ use Socket qw(:all);
 use IO::Socket::INET ();
 use IO::Select       ();
 
-use constant should_write_response_line => 1;
-
 has host => (
     is      => 'ro',
     isa     => 'Str',
@@ -138,44 +136,55 @@ sub _handler {
 
     while (1) {
         # FIXME refactor an HTTP push parser
-        my($path, $query_string) = split /\?/, $uri, 2;
-
-        my $headers;
 
         # Parse headers
         # taken from HTTP::Message, which is unfortunately not really reusable
-        if ($protocol >= 1) {
-            my @hdr;
-            while ( length(my $line = $self->_get_line($remote)) ) {
-                if ($line =~ s/^([^\s:]+)[ \t]*: ?(.*)//) {
-                    push(@hdr, $1, $2);
+        my $headers = do {
+            if ($protocol >= 1) {
+                my @hdr;
+                while ( length(my $line = $self->_get_line($remote)) ) {
+                    if ($line =~ s/^([^\s:]+)[ \t]*: ?(.*)//) {
+                        push(@hdr, $1, $2);
+                    }
+                    elsif (@hdr && $line =~ s/^([ \t].*)//) {
+                        $hdr[-1] .= "\n$1";
+                    } else {
+                        last;
+                    }
                 }
-                elsif (@hdr && $line =~ s/^([ \t].*)//) {
-                    $hdr[-1] .= "\n$1";
-                } else {
-                    last;
-                }
+                HTTP::Headers->new(@hdr);
+            } else {
+                HTTP::Headers->new;
             }
-            $headers = HTTP::Headers->new(@hdr);
-        } else {
-            $headers = HTTP::Headers->new;
-        }
+        };
 
         # Pass flow control to HTTP::Engine
         $self->handle_request(
             request_args => {
-                uri            => URI::WithBase->new($uri),
+                uri            => URI::WithBase->new(
+                    do {
+                        my $u = URI->new($uri);
+                        $u->scheme('http');
+                        $u->host($headers->header('Host') || $self->host);
+                        $u->port($self->port);
+                        my $b = $u->clone;
+                        $b->path_query('/');
+                        ($u, $b);
+                    },
+                ),
                 headers        => $headers,
-                method         => $method,
-                address        => $sockdata->{peeraddr},
-                port           => $port,
-                protocol       => "HTTP/$protocol",
-                user           => undef,
-                https_info     => undef,
                 _connection => {
                     input_handle  => $remote,
                     output_handle => $remote,
                     env           => {}, # no more env than what we provide
+                },
+                connection_info => {
+                    method         => $method,
+                    address        => $sockdata->{peeraddr},
+                    port           => $port,
+                    protocol       => "HTTP/$protocol",
+                    user           => undef,
+                    https_info     => undef,
                 },
             },
         );
@@ -191,7 +200,7 @@ sub _handler {
         last unless ($method, $uri, $protocol) = $self->_parse_request_line($remote, 1);
     }
 
-    $self->request_builder->_io_read($remote, my $buf, 4096) if $sel->can_read(0); # IE bk
+    $self->request_builder->_io_read($remote, my $buf, 4096) if $sel->can_read(0); # IE hack
     close $remote;
 }
 
@@ -253,13 +262,7 @@ __END__
 
 HTTP::Engine::Interface::Standalone - Standalone HTTP Server
 
-=head1 SYNOPSIS
+=head1 AUTHOR
 
-  interface:
-    module: Standalone
-    args:
-      host: localhost
-      port: 5963
-      fork: 1
-      keepalive: 1
-    request_handler: methodname
+Kazuhiro Osawa
+

@@ -11,10 +11,12 @@ package main;
 use Test::More tests => 1;
 
 use HTTP::Engine::Request;
+use HTTP::Engine::RequestBuilder;
 use HTTP::Engine::Response;
 use HTTP::Engine::ResponseFinalizer;
+use t::Utils;
 
-my $req = HTTP::Engine::Request->new(
+my $req = req(
     protocol => 'HTTP/1.1',
     method => 'GET',
 );

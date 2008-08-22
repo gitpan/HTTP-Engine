@@ -4,7 +4,8 @@ use Test::More tests => 4;
 use t::Utils;
 use HTTP::Engine;
 use HTTP::Request;
-
+use HTTP::Engine::RequestBuilder;
+use t::Utils;
 
 do {
     run_engine {
@@ -12,7 +13,7 @@ do {
         is $req->raw_body => 'test';
         HTTP::Engine::Response->new( body => '' );
     } HTTP::Request->new( GET => 'http://localhost/')
-        => ( req => HTTP::Engine::Request->new( method => 'GET', raw_body => 'test' ) );
+        => ( req => req( method => 'GET', raw_body => 'test' ) );
 };
 
 do {

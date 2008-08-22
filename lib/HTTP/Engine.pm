@@ -1,7 +1,8 @@
 package HTTP::Engine;
+use 5.00800;
 use Moose;
 use HTTP::Engine::Types::Core qw( Interface );
-our $VERSION = '0.0.13';
+our $VERSION = '0.0.14';
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
 use HTTP::Engine::Response;
@@ -11,7 +12,7 @@ has 'interface' => (
     is      => 'ro',
     does    => Interface,
     coerce  => 1,
-    handles => [ qw(run load_plugins) ],
+    handles => [ qw(run) ],
 );
 
 no Moose;
