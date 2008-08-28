@@ -1,21 +1,22 @@
 package HTTP::Engine::Interface::CGI;
-use Moose;
-with 'HTTP::Engine::Role::Interface';
+use HTTP::Engine::Interface
+    builder => 'CGI',
+    writer  => { response_line => 0 },
+;
 
 sub run {
     my ($self) = @_;
     $self->handle_request(
-        request_args => {
-            _connection => {
-                env           => \%ENV,
-                input_handle  => \*STDIN,
-                output_handle => \*STDOUT,
-            },
+        _connection => {
+            env           => \%ENV,
+            input_handle  => \*STDIN,
+            output_handle => \*STDOUT,
         },
     );
 }
 
-1;
+__INTERFACE__
+
 __END__
 
 =for stopwords CGI Naoki Nyarla Okamura yaml

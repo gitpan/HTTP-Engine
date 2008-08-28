@@ -1,10 +1,35 @@
 package HTTP::Engine::Interface::Standalone;
-use Moose;
-with 'HTTP::Engine::Role::Interface';
+use HTTP::Engine::Interface
+    builder => 'NoEnv',
+    writer  => {
+        response_line => 1,
+        before => {
+            finalize => sub {
+                my($self, $req, $res) = @_;
+
+                $res->headers->date(time);
+
+                if ($req->_connection->{keepalive_available}) {
+                    $res->headers->header( Connection => 'keep-alive' );
+                } else {
+                    $res->headers->header( Connection => 'close' );
+                }
+            }
+        }
+    }
+;
+
 
 use Socket qw(:all);
 use IO::Socket::INET ();
 use IO::Select       ();
+
+BEGIN {
+    if ( $ENV{SMART_COMMENTS} ) {
+        Class::MOP::load_class('Smart::Comments');
+        Smart::Comments->import;
+    }
+}
 
 has host => (
     is      => 'ro',
@@ -22,6 +47,12 @@ has keepalive => (
     is      => 'ro',
     isa     => 'Bool',
     default => 0,
+);
+
+has keepalive_timeout => (
+    is      => 'ro',
+    isa     => 'Int',
+    default => 5,
 );
 
 # fixme add preforking support using Parallel::Prefork
@@ -43,67 +74,50 @@ has argv => (
     default => sub { [] },
 );
 
+no Moose;
+
 sub run {
     my ( $self ) = @_;
 
-    $self->response_writer->keepalive( $self->fork && $self->keepalive );
-
-    my $host = $self->host;
-    my $port = $self->port;
-
-    # Setup address
-    my $addr = $host ? inet_aton($host) : INADDR_ANY;
-    if ($addr eq INADDR_ANY) {
-        require Sys::Hostname;
-        $host = lc Sys::Hostname::hostname();
-    } else {
-        $host = gethostbyaddr($addr, AF_INET) || inet_ntoa($addr);
+    if ($self->keepalive && !$self->fork) {
+        Carp::croak "set fork=1 if you want to work with keepalive!";
     }
 
     # Setup socket
     my $daemon = IO::Socket::INET->new(
         Listen    => SOMAXCONN,
-        LocalAddr => inet_ntoa($addr),
-        LocalPort => $port,
+        LocalAddr => $self->host,
+        LocalPort => $self->port,
         Proto     => 'tcp',
         ReuseAddr => 1,
         Type      => SOCK_STREAM,
     ) or die "Couldn't create daemon: $!";
 
-    my $url = "http://$host";
-    $url .= ":$port" unless $port == 80;
-
     my $restart = 0;
-    my $allowed = $self->allowed;
     my $parent = $$;
     my $pid    = undef;
     local $SIG{CHLD} = 'IGNORE';
 
-    while (my $remote = $daemon->accept) {
+    ### start server
+    while (my ($remote, $peername) = $daemon->accept) {
+        ### accept : $remote->fileno
         # TODO (Catalyst): get while ( my $remote = $daemon->accept ) to work
-        delete $self->{_sigpipe};
-
         next unless my($method, $uri, $protocol) = $self->_parse_request_line($remote);
         unless (uc $method eq 'RESTART') {
             # Fork
             next if $self->fork && ($pid = fork);
-            $self->_handler($remote, $port, $method, $uri, $protocol);
-            $daemon->close if defined $pid;
-        } else {
-            my $sockdata = $self->_socket_data($remote);
-            my $ipaddr   = _inet_addr($sockdata->{peeraddr});
-            my $ready    = 0;
-            for my $ip (keys %{ $allowed }) {
-                my $mask = $allowed->{$ip};
-                $ready = ($ipaddr & _inet_addr($mask)) == _inet_addr($ip);
-                last if $ready;
+            $self->_handler($remote, $method, $uri, $protocol, $peername);
+            if (defined $pid) {
+                $daemon->close;
+                exit();
             }
-            if ($ready) {
+        } else {
+            ### RESTART
+            if ($self->_can_restart($peername)) {
                 $restart = 1;
                 last;
             }
         }
-        exit if defined $pid;
     } continue {
         close $remote;
     }
@@ -112,96 +126,55 @@ sub run {
     if ($restart) {
         $SIG{CHLD} = 'DEFAULT';
         wait;
-        exec $^X . ' "' . $0 . '" ' . join(' ', @{ $self->argv });
+        exec $^X, $0, @{ $self->argv };
     }
 
     exit;
 }
 
 sub _handler {
-    my($self, $remote, $port, $method, $uri, $protocol) = @_;
+    my($self, $remote, $method, $uri, $protocol, $peername) = @_;
 
     # Ignore broken pipes as an HTTP server should
-    local $SIG{PIPE} = sub { $self->{_sigpipe} = 1; close $remote };
+    local $SIG{PIPE} = sub { close $remote };
 
     # We better be careful and just use 1.0
-    $protocol = '1.0';
+    $protocol = '1.0'; # XXX I don't know about why this needed.
 
-    my $sockdata    = $self->_socket_data($remote);
-
-    my $sel = IO::Select->new;
-    $sel->add($remote);
+    my $select = IO::Select->new($remote);
 
     $remote->autoflush(1);
 
     while (1) {
         # FIXME refactor an HTTP push parser
 
-        # Parse headers
-        # taken from HTTP::Message, which is unfortunately not really reusable
-        my $headers = do {
-            if ($protocol >= 1) {
-                my @hdr;
-                while ( length(my $line = $self->_get_line($remote)) ) {
-                    if ($line =~ s/^([^\s:]+)[ \t]*: ?(.*)//) {
-                        push(@hdr, $1, $2);
-                    }
-                    elsif (@hdr && $line =~ s/^([ \t].*)//) {
-                        $hdr[-1] .= "\n$1";
-                    } else {
-                        last;
-                    }
-                }
-                HTTP::Headers->new(@hdr);
-            } else {
-                HTTP::Headers->new;
-            }
-        };
+        my $headers = $self->_parse_header($remote, $protocol);
 
-        # Pass flow control to HTTP::Engine
-        $self->handle_request(
-            request_args => {
-                uri            => URI::WithBase->new(
-                    do {
-                        my $u = URI->new($uri);
-                        $u->scheme('http');
-                        $u->host($headers->header('Host') || $self->host);
-                        $u->port($self->port);
-                        my $b = $u->clone;
-                        $b->path_query('/');
-                        ($u, $b);
-                    },
-                ),
-                headers        => $headers,
-                _connection => {
-                    input_handle  => $remote,
-                    output_handle => $remote,
-                    env           => {}, # no more env than what we provide
-                },
-                connection_info => {
-                    method         => $method,
-                    address        => $sockdata->{peeraddr},
-                    port           => $port,
-                    protocol       => "HTTP/$protocol",
-                    user           => undef,
-                    https_info     => undef,
-                },
-            },
-        );
+        my $connection = lc $headers->header("Connection");
+        ### connection: $connection
 
-        my $connection = $headers->header("Connection");
+        my $keepalive_available = $self->keepalive
+                                  && index( $connection, 'keep-alive' ) > -1
+        ;
+        ### keepalive_available: $keepalive_available
 
-        last
-          unless $self->fork && $self->keepalive
-          && index($connection, 'keep-alive') > -1
-          && index($connection, 'te') == -1          # opera stuff
-          && $sel->can_read(5);
+        $self->_handle_one($remote, $method, $uri, $protocol, $peername, $headers, $keepalive_available);
 
-        last unless ($method, $uri, $protocol) = $self->_parse_request_line($remote, 1);
+        if ($keepalive_available) {
+            ### waiting keepalive timeout
+            last unless $select->can_read($self->keepalive_timeout);
+
+            ### GO! keep alive!
+            last unless ($method, $uri, $protocol) = $self->_parse_request_line($remote, 1);
+        } else {
+            last;
+        }
     }
 
-    $self->request_builder->_io_read($remote, my $buf, 4096) if $sel->can_read(0); # IE hack
-    close $remote;
+    $remote->read(my $buf, 4096) if $select->can_read(0); # IE hack
+
+    ### close connection
+    $remote->close();
 }
 
 sub _parse_request_line {
@@ -218,20 +191,11 @@ sub _parse_request_line {
     return ($method, $uri, $protocol);
 }
 
-sub _socket_data {
-    my($self, $handle) = @_;
+sub _peeraddr {
+    my ($self, $peername) = @_;
 
-    my $remote_sockaddr = getpeername($handle);
-    my(undef, $iaddr) = sockaddr_in($remote_sockaddr);
-    my $local_sockaddr = getsockname($handle);
-    my(undef, $localiaddr) = sockaddr_in($local_sockaddr);
-
-    my $data = {
-        peeraddr => inet_ntoa($iaddr) || "127.0.0.1",
-        localaddr => inet_ntoa($localiaddr) || "127.0.0.1",
-    };
-
-    $data;
+    my (undef, $iaddr) = sockaddr_in($peername);
+    return inet_ntoa($iaddr) || "127.0.0.1";
 }
 
 sub _get_line {
@@ -239,7 +203,7 @@ sub _get_line {
 
     # FIXME use bufferred but nonblocking IO? this is a lot of calls =(
     my $line = '';
-    while ($self->request_builder->_io_read($handle, my $byte, 1)) {
+    while ($handle->read(my $byte, 1)) {
         last if $byte eq "\012";    # eol
         $line .= $byte;
     }
@@ -250,10 +214,83 @@ sub _get_line {
     $line;
 }
 
+# Parse headers
+# taken from HTTP::Message, which is unfortunately not really reusable
+sub _parse_header {
+    my ($self, $remote, $protocol) = @_;
+
+    if ( $protocol >= 1 ) {
+        my @hdr;
+        while ( length( my $line = $self->_get_line($remote) ) ) {
+            if ( $line =~ s/^([^\s:]+)[ \t]*: ?(.*)// ) {
+                push( @hdr, $1, $2 );
+            }
+            elsif ( @hdr && $line =~ s/^([ \t].*)// ) {
+                $hdr[-1] .= "\n$1";
+            }
+            else {
+                last;
+            }
+        }
+        HTTP::Headers->new(@hdr);
+    }
+    else {
+        HTTP::Headers->new;
+    }
+}
+
+sub _handle_one {
+    my($self, $remote, $method, $uri, $protocol, $peername, $headers, $keepalive_available) = @_;
+
+    local *STDOUT = $remote;
+    $self->handle_request(
+        uri => URI::WithBase->new(
+            do {
+                my $u = URI->new($uri);
+                $u->scheme('http');
+                $u->host($headers->header('Host') || $self->host);
+                $u->port($self->port);
+                my $b = $u->clone;
+                $b->path_query('/');
+                ($u, $b);
+            },
+        ),
+        headers        => $headers,
+        _connection => {
+            input_handle        => $remote,
+            output_handle       => $remote,
+            env                 => {},
+            keepalive_available => $keepalive_available,
+        },
+        connection_info => {
+            method         => $method,
+            address        => $self->_peeraddr($peername),
+            port           => $self->port,
+            protocol       => "HTTP/$protocol",
+            user           => undef,
+            _https_info     => undef,
+        },
+    );
+}
+
+sub _can_restart {
+    my ($self, $peername) = @_;
+
+    my $peeraddr = _inet_addr($self->_peeraddr($peername));
+    my $allowed = $self->allowed;
+    for my $ip (keys %{ $allowed }) {
+        my $mask = $allowed->{$ip};
+        if (($peeraddr & _inet_addr($mask)) == _inet_addr($ip)) {
+            return 1
+        }
+    }
+    return 0;
+}
+
 sub _inet_addr { unpack "N*", inet_aton($_[0]) }
 
+__INTERFACE__
 
-1;
 __END__
 
 =for stopwords Standalone
@@ -261,6 +298,10 @@ __END__
 =head1 NAME
 
 HTTP::Engine::Interface::Standalone - Standalone HTTP Server
+
+=head1 DESCRIPTION
+
+THIS MODULE WILL REMOVE!!
 
 =head1 AUTHOR
 

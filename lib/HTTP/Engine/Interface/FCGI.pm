@@ -1,6 +1,21 @@
 package HTTP::Engine::Interface::FCGI;
-use Moose;
-with 'HTTP::Engine::Role::Interface';
+use HTTP::Engine::Interface
+    builder => 'CGI',
+    writer  => {
+        response_line => 1,
+        'write' => sub {
+            my ($self, $buffer) = @_;
+            *STDOUT->syswrite($buffer);
+        },
+    }
+;
+# XXX: We can't use Engine's write() method because syswrite
+# appears to return bogus values instead of the number of bytes
+# written: http://www.fastcgi.com/om_archive/mail-archive/0128.html
+
+# FastCGI does not stream data properly if using 'print $handle',
+# but a syswrite appears to work properly.
+
 use constant RUNNING_IN_HELL => $^O eq 'MSWin32';
 use FCGI;
 
@@ -115,13 +130,11 @@ sub run {
         }
 
         $self->handle_request(
-            request_args => {
-                _connection => {
-                    input_handle  => *STDIN,
-                    output_handle => *STDOUT,
-                    env           => \%env,
-                },
-            }
+            _connection => {
+                input_handle  => *STDIN,
+                output_handle => *STDOUT,
+                env           => \%env,
+            },
         );
 
         $proc_manager && $proc_manager->pm_post_dispatch();
@@ -142,7 +155,8 @@ sub daemon_detach {
     POSIX::setsid();
 }
 
-1;
+__INTERFACE__
+
 __END__
 
 =for stopwords nointr pidfile nproc

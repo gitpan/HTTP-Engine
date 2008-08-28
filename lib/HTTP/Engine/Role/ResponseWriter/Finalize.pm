@@ -1,12 +1,8 @@
-package HTTP::Engine::ResponseWriter;
-use Moose;
-use Carp;
+package HTTP::Engine::Role::ResponseWriter::Finalize;
+use Moose::Role;
+use Carp ();
 
-has chunk_size => (
-    is      => 'ro',
-    isa     => 'Int',
-    default => 4096,
-);
+requires qw(write output_body);
 
 my $CRLF = "\015\012";
 
@@ -21,6 +17,4 @@ sub finalize {
     $self->output_body($res->body);
 }
 
-no Moose;
-__PACKAGE__->meta->make_immutable;
 1;

@@ -28,12 +28,6 @@ sub BUILD {
     }
 }
 
-has _builder_params => (
-    is => "ro",
-    isa => "HashRef",
-    default => sub { {} },
-);
-
 has _connection => (
     is => "ro",
     isa => 'HashRef',
@@ -72,7 +66,7 @@ sub _build_cookies {
     $self->request_builder->_build_cookies($self);
 }
 
-foreach my $attr qw(address method protocol user port https_info) {
+foreach my $attr qw(address method protocol user port _https_info) {
     has $attr => (
         is => 'rw',
         # isa => "Str",
@@ -101,7 +95,7 @@ has secure => (
 sub _build_secure {
     my $self = shift;
 
-    if ( my $https = $self->https_info ) {
+    if ( my $https = $self->_https_info ) {
         return 1 if uc($https) eq 'ON';
     }
 
