@@ -2,7 +2,7 @@ package HTTP::Engine;
 use 5.00800;
 use Moose;
 use HTTP::Engine::Types::Core qw( Interface );
-our $VERSION = '0.0.15';
+our $VERSION = '0.0.16';
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
 use HTTP::Engine::Response;
@@ -131,7 +131,7 @@ old style
 Interfaces can be specified as part of the HTTP::Engine constructor:
 
   my $interface = HTTP::Engine::Interface::FastCGI->new(
-    handler => ...
+    request_handler => ...
   );
   HTTP::Engine->new(
     interface => $interface
@@ -143,8 +143,8 @@ Or you can let HTTP::Engine instantiate the interface for you:
     interface => {
       module => 'FastCGI',
       args   => {
-        handler => ...
       }
+      request_handler => ...
     }
   )->run();
 

@@ -1,8 +1,8 @@
 package HTTP::Engine::Interface::ModPerl;
 use HTTP::Engine::Interface
-    builder => '+HTTP::Engine::Interface::ModPerl::RequestBuilder',
+    builder => 'CGI',
     writer  => {
-        attribute => {
+        attributes => {
             chunk_size => {
                 is      => 'ro',
                 isa     => 'Int',
@@ -13,12 +13,15 @@ use HTTP::Engine::Interface
             my ($self, $req, $res) = @_;
             my $r = $req->_connection->{apache_request} or die "missing apache request";
             $r->status( $res->status );
-            $req->headers->scan(
+            my $content_type;
+            $res->headers->scan(
                 sub {
                     my ($key, $val) = @_;
+                    $content_type = $val if lc $key eq 'content-type';
                     $r->headers_out->add($key => $val);
                 }
             );
+            $r->content_type($content_type) if $content_type;
 
             sub {
                 my ($r, $body) = @_;
@@ -62,6 +65,11 @@ has 'apache' => (
     is_weak => 1,
 );
 
+has 'context_key' => (
+    is      => 'rw',
+    isa     => 'Str',
+);
+
 no Moose;
 
 my %HE;
@@ -71,47 +79,28 @@ sub handler : method
     my $class = shift;
     my $r     = shift;
 
+    local %ENV = %ENV;
+
     # ModPerl is currently the only environment where the inteface comes
     # before the actual invocation of HTTP::Engine
 
-    my $location = $r->location;
-    my $engine   = $HE{ $location };
+    my $context_key = join ':', $ENV{SERVER_NAME}, $ENV{SERVER_PORT}, $r->location;
+    my $engine   = $HE{ $context_key };
     if (! $engine ) {
-        $engine = $class->create_engine($r);
-        $HE{ $r->location } = $engine;
+        $engine = $class->create_engine($r, $context_key);
+        $HE{ $context_key } = $engine;
     }
 
     $engine->interface->apache( $r );
-
-    my $server = $r->server;
-    my $connection = $r->connection;
+    $engine->interface->context_key( $context_key );
 
     $engine->interface->handle_request(
-        headers => HTTP::Headers->new(
-            %{ $r->headers_in }
-        ),
         _connection => {
             input_handle   => \*STDIN,
             output_handle  => \*STDOUT,
-            env            => {
-                REQUEST_METHOD => $r->method(),
-                REMOTE_ADDR    => $connection->remote_ip(),
-                SERVER_PORT    => $server->port(),
-                QUERY_STRING   => $r->args() || '',
-                HTTP_HOST      => $r->hostname(),
-                SERVER_PROTOCOL => $r->protocol,
-            },
+            env            => \%ENV,
             apache_request => $r,
         },
-        connection_info => {
-            address    => $connection->remote_ip(),
-            protocol   => $r->protocol,
-            method     => $r->method,
-            port       => $server->port,
-            user       => $r->user,
-            _https_info => undef, # TODO: implement
-        },
-        hostname => $r->hostname,
     );
 
     return &Apache2::Const::OK;
@@ -119,7 +108,7 @@ sub handler : method
 
 sub create_engine
 {
-    my ($self, $r) = @_;
+    my ($class, $r) = @_;
 
     HTTP::Engine->new(
         interface => HTTP::Engine::Interface::ModPerl->new(
@@ -134,9 +123,83 @@ __INTERFACE__
 
 __END__
 
+=for stopwords httpd.conf
+
 =head1 NAME
 
 HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
+
+=head1 SYNOPSIS
+
+  # App.pm
+  package App;
+  use Moose;
+  use Data::Dumper;
+  use HTTP::Engine;
+
+  sub run {
+      my($self, $conf) = @_;
+      $conf->{request_handler} = sub { $self->handle_request(@_) };
+      HTTP::Engine->new(
+          interface => $conf,
+      )->run;
+  }
+  
+  sub handle_request {
+      my($self, $req) = @_;
+      HTTP::Engine::Response(
+          status => 200,
+          body => Dumper($req),
+      );
+  }
+
+
+  # app.pl
+  use strict;
+  use warnings;
+  use App;
+  App->new->run({
+      module => 'ServerSimple',
+      args => { port => 9999 },
+  });
+
+
+  # App/ModPerl.pm
+  package App::ModPerl;
+  use Moose;
+  extends 'HTTP::Engine::Interface::ModPerl';
+  use App;
+  
+  sub create_engine {
+      my($class, $r, $context_key) = @_;
+
+      App->new->run({
+          module => 'ModPerl',
+      });
+  }
+
+
+  # in httpd.conf
+  <VirtualHost 127.0.0.1:8080>
+      <Location />
+          SetHandler modperl
+          PerlOptions +SetupEnv
+          PerlSwitches -Mlib=/foo/bar/app/lib
+          PerlResponseHandler App::ModPerl
+      </Location>
+  </VirtualHost>
+
+
+=head1 CONFIG
+
+required configuration in httpd.conf
+
+    SetHandler modperl
+    PerlOptions +SetupEnv
+
+or
+
+    SetHandler perl-script
 
 =head1 AUTHORS
 
@@ -144,9 +207,7 @@ Daisuke Maki
 
 Tokuhiro Matsuno
 
-=head1 KNOWN BUGS
-
-    cannot get https_info
+Kazuhiro Osawa
 
 =head1 SEE ALSO
 

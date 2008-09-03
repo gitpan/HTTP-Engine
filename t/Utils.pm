@@ -100,7 +100,7 @@ sub daemonize_all (&$@) {
             $args{interface}->{module} = $interface;
             $args{poe_kernel_run} = ($interface eq 'POE') if $poe_kernel_run;
             test_tcp(
-                client => $client_cb,
+                client => sub { $client_cb->(@_, $interface) },
                 server => sub {
                     my $poe_kernel_run = delete $args{poe_kernel_run};
                     HTTP::Engine->new(%args)->run;
@@ -132,14 +132,18 @@ sub ok_response {
 }
 
 my $BUILDER = do {
-    my $builder_meta = Moose::Meta::Class->create_anon_class(
-        superclass => 'Moose::Meta::Class',
-        roles => [qw(
-            HTTP::Engine::Role::RequestBuilder
-            HTTP::Engine::Role::RequestBuilder::ParseEnv
-            HTTP::Engine::Role::RequestBuilder::HTTPBody
-        )],
-        cache => 1,
+    require HTTP::Engine::Role::RequestBuilder::ParseEnv; # XXX Moose 0.55_01 has a bug... please fix t/030/031
+
+    my $builder_meta = Moose::Meta::Class->create(
+        't::Utils::HTTPRequestBuilder' => (
+            superclass => 'Moose::Meta::Class',
+            roles => [qw(
+                HTTP::Engine::Role::RequestBuilder
+                HTTP::Engine::Role::RequestBuilder::ParseEnv
+                HTTP::Engine::Role::RequestBuilder::HTTPBody
+            )],
+            cache => 1,
+        )
     );
     $builder_meta->make_immutable;
     $builder_meta->name->new(

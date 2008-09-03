@@ -28,7 +28,7 @@ if (HAVE_MP) {
 name 'HTTP-Engine';
 all_from 'lib/HTTP/Engine.pm';
 
-requires 'Moose'         => '0.55';
+requires 'Moose'         => 0.56;
 requires 'MooseX::Types' => 0.04;
 requires 'Scalar::Util'  => 1.19;
 
@@ -83,7 +83,7 @@ build_requires 'Test::More';
 build_requires 'IO::Scalar';
 build_requires 'File::Temp' => '0.20';
 build_requires 'HTTP::Request::AsCGI';
-build_requires 'Test::TCP';
+build_requires 'Test::TCP' => 0.02;
 
 use_test_base;
 auto_include;
