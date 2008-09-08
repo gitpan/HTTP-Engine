@@ -66,7 +66,7 @@ sub _build_cookies {
     $self->request_builder->_build_cookies($self);
 }
 
-foreach my $attr qw(address method protocol user port _https_info) {
+foreach my $attr qw(address method protocol user port _https_info request_uri) {
     has $attr => (
         is => 'rw',
         # isa => "Str",
@@ -104,6 +104,21 @@ sub _build_secure {
     }
 
     return 0;
+}
+
+# proxy request?
+has proxy_request => (
+    is         => 'rw',
+    isa        => 'Str', # TODO: union(Uri, Undef) type
+#    coerce     => 1,
+    lazy_build => 1,
+);
+
+sub _build_proxy_request {
+    my $self = shift;
+    return '' unless $self->request_uri;                   # TODO: return undef
+    return '' unless $self->request_uri =~ m!^https?://!i; # TODO: return undef
+    return $self->request_uri;                             # TODO: return URI->new($self->request_uri);
 }
 
 has uri => (
@@ -351,16 +366,43 @@ __PACKAGE__->meta->make_immutable;
 1;
 __END__
 
-=for stopwords Stringifies URI http https param CGI.pm-compatible referer uri IP hostname
+=for stopwords Stringifies URI http https param CGI.pm-compatible referer uri IP hostname API enviroments
 
 =head1 NAME
 
-HTTP::Engine::Request - http request object
+HTTP::Engine::Request - Portable HTTP request object
 
 =head1 SYNOPSIS
 
+    # normally a request object is passed into your handler
     sub handle_request {
         my $req = shift;
+
+   };
+
+=head1 DESCRIPTION
+
+L<HTTP::Engine::Request> provides a consistent API for request objects across web
+server enviroments. 
+
+=head1 METHODS
+
+=head2 new
+
+    HTTP::Engine::Request->new(
+        request_builder => $BUILDER,
+        _connection => {
+            env           => \%ENV,
+            input_handle  => \*STDIN,
+            output_handle => \*STDOUT,
+        },
+        %args
+    );
+
+Normally, new() is not called directly, but a pre-built HTTP::Engine::Request
+object is passed for you into your request handler. You may build your own,
+following the example above. The C<$BUILDER> may be one of
+L<HTTP::Engine::RequestBuilder::CGI> or L<HTTP::Engine::RequestBuilder::NoEnv>.
 
 =head1 ATTRIBUTES
 
@@ -382,6 +424,10 @@ Contains the request method (C<GET>, C<POST>, C<HEAD>, etc).
 
 Returns the protocol (HTTP/1.0 or HTTP/1.1) used for the current request.
 
+=item request_uri
+
+Returns the request uri (like $ENV{REQUEST_URI})
+
 =item query_parameters
 
 Returns a reference to a hash containing query string (GET) parameters. Values can                                                    
@@ -390,6 +436,10 @@ be either a scalar or an arrayref containing scalars.
 =item secure
 
 Returns true or false, indicating whether the connection is secure (https).
+
+=item proxy_request
+
+Returns undef or uri, if it is proxy request, uri of a connection place is returned.
 
 =item uri
 

@@ -2,7 +2,7 @@ package HTTP::Engine;
 use 5.00800;
 use Moose;
 use HTTP::Engine::Types::Core qw( Interface );
-our $VERSION = '0.0.16';
+our $VERSION = '0.0.17';
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
 use HTTP::Engine::Response;
@@ -19,7 +19,7 @@ __PACKAGE__->meta->make_immutable;
 1;
 __END__
 
-=for stopwords middlewares Middleware middleware nothingmuch kan
+=for stopwords middlewares Middleware middleware nothingmuch kan Stosberg
 
 =encoding utf8
 
@@ -64,22 +64,31 @@ version 0.0.13 is unsupported of context and middleware.
 
 =head1 DESCRIPTION
 
-HTTP::Engine is a bare-bones, extensible HTTP engine. It is not a 
-socket binding server.
+HTTP::Engine abstracts handling the input and output of various web server
+environments, including CGI, mod_perl and FastCGI. 
 
-The purpose of this module is to be an adaptor between various HTTP-based 
-logic layers and the actual implementation of an HTTP server, such as, 
-mod_perl and FastCGI.
+While some people use <CGI.pm>  in a CGI environment, but switch
+<Apache::Request> under mod_perl for better performance, these HTTP request
+abstractions have incompatible interfaces, so it is not easy to switch between
+them.
 
-Internally, the only thing HTTP::Engine will do is to prepare a 
-HTTP::Engine::Request object for you to handle, and pass to your handler's
-C<TBD> method. In turn your C<TBD> method should return a fully prepared
-HTTP::Engine::Response object.
+HTTP::Engine will prepare a L<HTTP::Engine::Request> object for you which is
+optimized for your current environment, and pass that to your request handler.
+Your request handler than prepares a L<HTTP::Engine::Response> object, which we
+communicate back to the server for you. 
 
-HTTP::Engine will handle absorbing the differences between the environment,
-the I/O, etc. Your application can focus on creating response objects
-(which is pretty much what your typical webapp is doing)
+L<HTTP::Engine::Request> covers the bases of common request process tasks, like
+handling GET and POST parameters and processing file uploads. Unlike CGI.pm,
+but like most other web programming languages, it allows you to mix GET and
+POST parameters.
 
+And importantly, it allows you to seamlessly move your code from CGI to a
+persistent without rewriting your code. At the same time, you'll maintain the
+possibility of additional performance benefits, as HTTP::Engine can
+transparently take advantage of native mod_perl functions when they are
+available.
+
+=head1 COMMUNITY
 
 The community can be found via:
 
@@ -195,6 +204,8 @@ lopnor
 nothingmuch
 
 kan
+
+Mark Stosberg (documentation)
 
 =head1 SEE ALSO
 
