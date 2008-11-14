@@ -58,7 +58,6 @@ use Apache2::RequestUtil;
 use Apache2::ServerRec;
 use APR::Table;
 use HTTP::Engine;
-
 has 'apache' => (
     is      => 'rw',
     isa     => 'Apache2::RequestRec',
@@ -137,17 +136,17 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
   use Data::Dumper;
   use HTTP::Engine;
 
-  sub run {
+  sub setup_engine {
       my($self, $conf) = @_;
       $conf->{request_handler} = sub { $self->handle_request(@_) };
       HTTP::Engine->new(
           interface => $conf,
-      )->run;
+      );
   }
   
   sub handle_request {
       my($self, $req) = @_;
-      HTTP::Engine::Response(
+      HTTP::Engine::Response->new(
           status => 200,
           body => Dumper($req),
       );
@@ -158,10 +157,10 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
   use strict;
   use warnings;
   use App;
-  App->new->run({
+  App->new->setup_engine({
       module => 'ServerSimple',
       args => { port => 9999 },
-  });
+  })->run;
 
 
   # App/ModPerl.pm
@@ -173,18 +172,18 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
   sub create_engine {
       my($class, $r, $context_key) = @_;
 
-      App->new->run({
+      App->new->setup_engine({
           module => 'ModPerl',
       });
   }
 
 
   # in httpd.conf
+  PerlSwitches -Mlib=/foo/bar/app/lib
   <VirtualHost 127.0.0.1:8080>
       <Location />
           SetHandler modperl
           PerlOptions +SetupEnv
-          PerlSwitches -Mlib=/foo/bar/app/lib
           PerlResponseHandler App::ModPerl
       </Location>
   </VirtualHost>

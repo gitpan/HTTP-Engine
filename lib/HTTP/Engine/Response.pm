@@ -23,6 +23,7 @@ has body => (
     isa     => 'Any',
     default => '',
 );
+sub content { shift->body(@_) } # alias
 
 has cookies => (
     is      => 'rw',
@@ -40,6 +41,8 @@ has status => (
     isa     => 'Int',
     default => 200,
 );
+
+sub code { shift->status(@_) }
 
 has headers => (
     is      => 'rw',
