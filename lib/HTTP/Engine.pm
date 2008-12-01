@@ -1,22 +1,20 @@
 package HTTP::Engine;
 use 5.00800;
-use Moose;
-use HTTP::Engine::Types::Core qw( Interface );
-our $VERSION = '0.0.19';
+use Shika;
+our $VERSION = '0.0.99_01';
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
 use HTTP::Engine::Response;
+use HTTP::Engine::Types::Core qw( Interface );
 use HTTP::Engine::Util;
 
 has 'interface' => (
     is      => 'ro',
-    does    => Interface,
+    isa => 'Interface',
     coerce  => 1,
     handles => [ qw(run) ],
 );
 
-no Moose;
-__PACKAGE__->meta->make_immutable;
 1;
 __END__
 
@@ -50,7 +48,26 @@ HTTP::Engine - Web Server Gateway Interface and HTTP Server Engine Drivers (Yet 
   }
 
 
-=head1 CONCEPT RELEASE
+=head1 MILESTONE
+
+=head2 0.x.x
+
+A substantial document. (A tutorial, the Cookbook and hacking HowTo)
+
+=head2 0.1.x
+
+Improvement in performance and resource efficiency.
+Most specifications are frozen.
+The specification is changed by the situation. 
+
+I want to perform Async support. (AnyEvent? Danga::Socket? IO::Async?)
+
+=head2 0.0.99_x
+
+It is now here.
+It is an adjustment stage to the following version.
+
+=head2 0.0.x
 
 Version 0.0.x is a concept release, the internal interface is still fluid. 
 It is mostly based on the code of Catalyst::Engine.
@@ -218,7 +235,7 @@ mattn
 
 L<HTTP::Engine::Compat>,
 L<HTTPEx::Declare>,
-L<Moose>
+L<Shika>
 
 =head1 REPOSITORY
 
