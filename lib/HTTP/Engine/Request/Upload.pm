@@ -2,10 +2,6 @@ package HTTP::Engine::Request::Upload;
 
 use Moose;
 
-use File::Copy ();
-use IO::File   ();
-use File::Spec::Unix;
-
 has filename => ( is => 'rw' );
 has headers  => ( is => 'rw' );
 has size     => ( is => 'rw' );
@@ -16,6 +12,7 @@ has basename => (
     lazy    => 1,
     default => sub {
         my $self = shift;
+        HTTP::Engine::Util::require_once('File/Spec/Unix.pm');
         my $basename = $self->filename;
         $basename =~ s|\\|/|g;
         $basename = ( File::Spec::Unix->splitpath($basename) )[2];
@@ -31,11 +28,7 @@ has fh => (
     default  => sub {
         my $self = shift;
 
-        my $fh = IO::File->new( $self->tempname, IO::File::O_RDONLY );
-        unless ( defined $fh ) {
-            my $filename = $self->tempname;
-            die "Can't open '$filename': '$!'";
-        }
+        open my $fh, '<', $self->tempname or die "Can't open '@{[ $self->tempname ]}': '$!'";
         return $fh;
     },
 );
@@ -44,6 +37,7 @@ no Moose;
 
 sub copy_to {
     my $self = shift;
+    HTTP::Engine::Util::require_once('File/Copy.pm');
     File::Copy::copy( $self->tempname, @_ );
 }
 

@@ -1,7 +1,7 @@
 package HTTP::Engine::Role::RequestBuilder::Standard;
 use Moose::Role;
 
-use IO::Socket qw[AF_INET inet_aton];
+use Socket qw[AF_INET inet_aton];
 
 with qw(HTTP::Engine::Role::RequestBuilder);
 
@@ -9,6 +9,7 @@ sub _build_cookies {
     my($self, $req) = @_;
 
     if (my $header = $req->header('Cookie')) {
+        HTTP::Engine::Util::require_once('CGI/Simple/Cookie.pm');
         return { CGI::Simple::Cookie->parse($header) };
     } else {
         return {};

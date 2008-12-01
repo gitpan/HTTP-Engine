@@ -2,10 +2,11 @@ package HTTP::Engine;
 use 5.00800;
 use Moose;
 use HTTP::Engine::Types::Core qw( Interface );
-our $VERSION = '0.0.18';
+our $VERSION = '0.0.19';
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
 use HTTP::Engine::Response;
+use HTTP::Engine::Util;
 
 has 'interface' => (
     is      => 'ro',
@@ -183,7 +184,7 @@ Or you can let HTTP::Engine instantiate the interface for you:
 
 =head1 AUTHOR
 
-Kazuhiro Osawa E<lt>ko@yappo.ne.jpE<gt>
+Kazuhiro Osawa E<lt>yappo <at> shibuya <döt> plE<gt>
 
 Daisuke Maki
 
@@ -210,6 +211,8 @@ Mark Stosberg (documentation)
 walf443
 
 kawa0117
+
+mattn
 
 =head1 SEE ALSO
 
