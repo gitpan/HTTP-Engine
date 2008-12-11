@@ -47,6 +47,8 @@ do {
         $state->{read_position} = 0;
     };
 
+    $req->request_builder->meta->make_mutable();
+
     $req->request_builder->_read_all($state);
     $reset->();
 
@@ -57,9 +59,8 @@ do {
     $reset->();
 
     do {
-        no strict 'refs';
         no warnings 'redefine';
-        *{ref($req->request_builder) . '::_io_read'} = sub { };
+        $req->request_builder->meta->add_method('_io_read' => sub { });
         local $@;
         eval { $req->request_builder->_read($state); };
         like $@, qr/Unknown error reading input/;
@@ -68,15 +69,14 @@ do {
 
 sub read_to_end {
     my($req, $state, $code, $re) = @_;
-    my $orig = $req->request_builder->can( '_read_all' );
-
-    no strict 'refs';
-    no warnings 'redefine';
-    *{ref($req->request_builder) . '::_read_all'} = sub { $orig->(@_); $code->() };
+    my $orig = $req->request_builder->meta->get_method( '_read_all' );
+    $req->request_builder->meta->add_method(
+        '_read_all', sub { $orig->(@_); $code->() }
+    );
 
     local $@;
     eval { $req->request_builder->_read_to_end($state); };
     like $@, qr/\Q$re\E/, $re;
 
-    *{ref($req->request_builder) . '::_read_all'} = $orig; # restore
+    $req->request_builder->meta->add_method( '_read_all' => $orig );
 }

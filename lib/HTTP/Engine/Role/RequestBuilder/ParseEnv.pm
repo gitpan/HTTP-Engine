@@ -1,8 +1,7 @@
 package HTTP::Engine::Role::RequestBuilder::ParseEnv;
-use Shika::Role;
+use Moose::Role;
 
-with {
-    role  => 'HTTP::Engine::Role::RequestBuilder::Standard',
+with 'HTTP::Engine::Role::RequestBuilder::Standard' => {
     alias => { _build_hostname => "_resolve_hostname" }, # we might be able to get it from the env
 };
 
@@ -27,7 +26,7 @@ sub _build_headers {
 
     my $env = $req->_connection->{env};
 
-    HTTP::Headers::Fast->new(
+    HTTP::Headers->new(
         map {
             (my $field = $_) =~ s/^HTTPS?_//;
             ( $field => $env->{$_} );

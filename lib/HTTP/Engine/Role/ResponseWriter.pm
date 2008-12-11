@@ -1,5 +1,5 @@
 package HTTP::Engine::Role::ResponseWriter;
-use Shika::Role;
+use Moose::Role;
 
 requires qw(finalize);
 

@@ -1,6 +1,7 @@
 package HTTP::Engine::Interface;
-use Shika;
-use UNIVERSAL::require;
+use Moose;
+
+*unimport = *Moose::unimport;
 
 my $ARGS = {};
 
@@ -8,8 +9,6 @@ sub import {
     my $class = shift;
 
     my $caller  = caller(0);
-    return if $caller eq 'main';
-
     $ARGS->{$caller} = {@_};
 
     no strict 'refs';
@@ -21,7 +20,10 @@ sub import {
     strict->import;
     warnings->import;
 
-    Shika::init_class($caller);
+    return if $caller eq 'main';
+
+    Moose::init_meta($caller);
+    Moose->import( { into => $caller } );
 }
 
 # fix up Interface.
@@ -36,69 +38,71 @@ sub __INTERFACE__ {
     _setup_builder($caller, $builder);
     _setup_writer($caller,  $writer);
 
-    Shika::apply_roles($caller, 'HTTP::Engine::Role::Interface');
-
-    "END_OF_MODULE";
+    Moose::Util::apply_all_roles($caller, 'HTTP::Engine::Role::Interface');
+    $caller->meta->make_immutable;
 }
 
 sub _setup_builder {
     my ($caller, $builder ) = @_;
     $builder = ($builder =~ s/^\+(.+)$//) ? $1 : "HTTP::Engine::RequestBuilder::$builder";
-    unless ($builder->can('meta')) {
-        $builder->require or die $@;
-    }
+    Class::MOP::load_class($builder);
     my $instance = $builder->new;
-
-    no strict 'refs';
-    *{"$caller\::request_builder"} = sub { $instance };
+    $caller->meta->add_method(
+        'request_builder' => sub { $instance }
+    );
 }
 
 sub _setup_writer {
     my ($caller, $args) = @_;
 
-    my $writer = _construct_writer($caller, $args)->new;
-    no strict 'refs';
-    *{"$caller\::response_writer"} = sub { $writer };
+    my $writer = _construct_writer($caller, $args)->new_object->new;
+    $caller->meta->add_method(
+        'response_writer' => sub {
+            $writer;
+        }
+    );
 }
 
 sub _construct_writer {
     my ($caller, $args, ) = @_;
 
-    my $writer = $caller . '::ResponseWriter';
-    Shika::init_class($writer);
+    my $writer = Moose::Meta::Class->create( $caller . '::ResponseWriter',
+        superclasses => ['Moose::Object'],
+        cache => 1,
+    );
 
     {
-        no strict 'refs';
-
         my @roles;
         my $apply = sub { push @roles, "HTTP::Engine::Role::ResponseWriter::$_[0]" };
         if ($args->{finalize}) {
-            *{"$writer\::finalize"} = $args->{finalize};
+            $writer->add_method(finalize => $args->{finalize});
         } else {
             if ($args->{response_line}) {
                 $apply->('ResponseLine');
             }
             if (my $code = $args->{output_body}) {
-                *{"$writer\::output_body"} = $code;
+                $writer->add_method('output_body' => $code);
             } else {
                 $apply->('OutputBody');
             }
             if (my $code = $args->{write}) {
-                *{"$writer\::write"} = $code;
+                $writer->add_method('write' => $code);
             } else {
                 $apply->('WriteSTDOUT');
             }
             $apply->('Finalize');
         }
-        Shika::apply_roles($writer, @roles, "HTTP::Engine::Role::ResponseWriter");
+        Moose::Util::apply_all_roles($writer, @roles, "HTTP::Engine::Role::ResponseWriter");
     }
 
     for my $before (keys %{ $args->{before} || {} }) {
-        Shika::add_before_method_modifier( $writer, $before => $args->{before}->{$before} );
+        $writer->add_before_method_modifier( $before => $args->{before}->{$before} );
     }
     for my $attribute (keys %{ $args->{attributes} || {} }) {
-        Shika::add_attribute( $writer, $attribute, $args->{attributes}->{$attribute} );
+        $writer->add_attribute( $attribute => $args->{attributes}->{$attribute} );
     }
+
+    $writer->make_immutable;
 
     return $writer;
 }

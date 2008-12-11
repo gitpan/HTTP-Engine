@@ -1,5 +1,5 @@
 package HTTP::Engine::RequestBuilder::NoEnv;
-use Shika;
+use Moose;
 
 with qw(
     HTTP::Engine::Role::RequestBuilder
@@ -8,4 +8,5 @@ with qw(
     HTTP::Engine::Role::RequestBuilder::NoEnv
 );
 
+__PACKAGE__->meta->make_immutable;
 __PACKAGE__

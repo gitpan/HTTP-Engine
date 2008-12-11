@@ -1,4 +1,5 @@
 package HTTP::Engine::Interface::POE;
+
 our $CLIENT;
 
 use HTTP::Engine::Interface
@@ -12,7 +13,6 @@ use HTTP::Engine::Interface
         }
     }
 ;
-use HTTP::Engine::ClassCreator;
 
 use POE qw/
     Component::Server::TCP
@@ -38,7 +38,7 @@ has alias => (
     isa      => 'Str | Undef',
 );
 
-my $filter = HTTP::Engine::ClassCreator->create(
+my $filter = Moose::Meta::Class->create(
     'HTTP::Engine::Interface::POE::Filter',
     superclasses => ['POE::Filter::HTTPD'],
     methods => {
@@ -47,7 +47,7 @@ my $filter = HTTP::Engine::ClassCreator->create(
             return @_;
         }
     },
-);
+)->name;
 
 sub run {
     my ($self) = @_;

@@ -1,13 +1,15 @@
 package t::Utils;
+
+use strict;
+use warnings;
 use HTTP::Engine;
-use HTTP::Engine::ClassCreator;
 use HTTP::Request::AsCGI;
 use Test::TCP qw/test_tcp empty_port/;
 
 use IO::Socket::INET;
 
 use Sub::Exporter -setup => {
-    exports => [qw/ daemonize_all interfaces run_engine ok_response req /],
+    exports => [qw/ daemonize_all interfaces run_engine ok_response req running_interface/],
     groups  => { default => [':all'] }
 };
 
@@ -27,6 +29,10 @@ sub interfaces() {
     return @interfaces;
 }
 
+my $running_interface;
+
+sub running_interface { $running_interface }
+
 sub daemonize_all (&$@) {
     my($client, $codesrc) = @_;
 
@@ -39,6 +45,7 @@ sub daemonize_all (&$@) {
 
     my @interfaces = interfaces;
     for my $interface (@interfaces) {
+        $running_interface = $interface;
         my $client_cb = sub { $client->(@_, $interface) };
         if ($interface eq 'FCGI') {
             require t::FCGIUtils;
@@ -69,14 +76,14 @@ sub daemonize_all (&$@) {
 
                     $args{interface}->{args}->{request_handler} = $args{interface}->{request_handler};
                     my $interface = HTTP::Engine::Interface::CGI->new($args{interface}->{args});
-                    Shika::apply_roles(
+                    Moose::Util::apply_all_roles(
                         $interface->response_writer,
                         'HTTP::Engine::Role::ResponseWriter::ResponseLine'
                     );
                     delete $args{interface};
 
-                    HTTP::Engine::ClassCreator
-                        ->create_anon(
+                    Moose::Meta::Class
+                        ->create_anon_class(
                             superclasses => ['HTTP::Server::Simple::CGI'],
                             methods => {
                                 handler => sub {
@@ -86,6 +93,8 @@ sub daemonize_all (&$@) {
                                     )->run;
                                 },
                             },
+                            cache => 1
+                        )->new_object(
                         )->new(
                             $port
                         )->run;
@@ -128,16 +137,21 @@ sub ok_response {
 }
 
 my $BUILDER = do {
-    {
-        package t::Utils::HTTPRequestBuilder;
-        use Shika;
-        with qw(
-            HTTP::Engine::Role::RequestBuilder
-            HTTP::Engine::Role::RequestBuilder::ParseEnv
-            HTTP::Engine::Role::RequestBuilder::HTTPBody
-        );
-    }
-    t::Utils::HTTPRequestBuilder->new(
+    require HTTP::Engine::Role::RequestBuilder::ParseEnv; # XXX Moose 0.55_01 has a bug... please fix t/030/031
+
+    my $builder_meta = Moose::Meta::Class->create(
+        't::Utils::HTTPRequestBuilder' => (
+            superclass => 'Moose::Meta::Class',
+            roles => [qw(
+                HTTP::Engine::Role::RequestBuilder
+                HTTP::Engine::Role::RequestBuilder::ParseEnv
+                HTTP::Engine::Role::RequestBuilder::HTTPBody
+            )],
+            cache => 1,
+        )
+    );
+    $builder_meta->make_immutable;
+    $builder_meta->name->new(
         chunk_size => 1,
     );
 };

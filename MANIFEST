@@ -29,7 +29,6 @@ inc/Test/Builder/Module.pm
 inc/Test/More.pm
 inc/Test/TCP.pm
 lib/HTTP/Engine.pm
-lib/HTTP/Engine/ClassCreator.pm
 lib/HTTP/Engine/Cookbook.pod
 lib/HTTP/Engine/Interface.pm
 lib/HTTP/Engine/Interface/CGI.pm
@@ -66,7 +65,6 @@ MANIFEST			This list of files
 META.yml
 README
 t/00_compile.t
-t/010_core/interface-require.t
 t/010_core/interface.t
 t/010_core/request-absolute_uri.t
 t/010_core/request-as_http_request.t
@@ -115,6 +113,7 @@ t/030_daemonize/connection_info.t
 t/030_daemonize/headers.t
 t/030_daemonize/proxy_path.t
 t/030_daemonize/raw_body.t
+t/030_daemonize/request_independence.t
 t/030_daemonize/responsewriter_io.t
 t/030_daemonize/upload-methods.t
 t/030_daemonize/upload.t

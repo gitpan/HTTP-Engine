@@ -12,7 +12,7 @@ do {
     my $req = HTTP::Request->new(
         'GET',
         '/',
-        HTTP::Headers::Fast->new(
+        HTTP::Headers->new(
             'Cookie' => "Foo=Bar; Bar=Baz",
         ),
     );

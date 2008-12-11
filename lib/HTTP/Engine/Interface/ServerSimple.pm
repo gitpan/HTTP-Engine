@@ -5,10 +5,10 @@ use HTTP::Engine::Interface
         response_line => 1,
     }
 ;
-use HTTP::Engine::ClassCreator;
 
 use HTTP::Server::Simple 0.34;
 use HTTP::Server::Simple::CGI;
+use HTTP::Headers;
 
 has host => (
     is      => 'ro',
@@ -27,24 +27,26 @@ has net_server => (
     isa     => 'Str | Undef',
     default => undef,
 );
+no Moose;
 
 sub run {
     my ($self, ) = @_;
 
-    my $headers = HTTP::Headers::Fast->new;
+    my $headers;
     my %setup;
     my $server;
-    $server = HTTP::Engine::ClassCreator
-        ->create_anon(
+    $server = Moose::Meta::Class
+        ->create_anon_class(
             superclasses => ['HTTP::Server::Simple'],
             methods => {
+                setup => sub {
+                    shift; # $self;
+                    $headers = HTTP::Headers->new;
+                    %setup = @_;
+                },
                 headers => sub {
                     my ( $self, $args ) = @_;
                     $headers->header(@$args);
-                },
-                setup => sub {
-                    shift; # $self;
-                    %setup = @_;
                 },
                 handler    => sub {
                     my($host, $port) = $headers->header('Host') ?
@@ -79,6 +81,7 @@ sub run {
                 net_server => sub { $self->net_server },
             },
             cache => 1
+        )->new_object(
         )->new(
             $self->port
         );

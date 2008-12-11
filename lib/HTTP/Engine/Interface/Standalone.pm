@@ -74,6 +74,8 @@ has argv => (
     default => sub { [] },
 );
 
+no Moose;
+
 sub run {
     my ( $self ) = @_;
 
@@ -230,10 +232,10 @@ sub _parse_header {
                 last;
             }
         }
-        HTTP::Headers::Fast->new(@hdr);
+        HTTP::Headers->new(@hdr);
     }
     else {
-        HTTP::Headers::Fast->new;
+        HTTP::Headers->new;
     }
 }
 

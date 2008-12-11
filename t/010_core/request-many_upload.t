@@ -47,7 +47,7 @@ $content =~ s/\n/\r\n/g;
 
 my $req = HTTP::Request->new(
     POST => 'http://localhost/',
-    HTTP::Headers::Fast->new(
+    HTTP::Headers->new(
         'Content-Type'   => 'multipart/form-data; boundary=----BOUNDARY',
         'Content-Length' => length($content),
     ),

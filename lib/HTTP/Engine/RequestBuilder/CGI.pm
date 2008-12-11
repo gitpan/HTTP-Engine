@@ -1,5 +1,5 @@
 package HTTP::Engine::RequestBuilder::CGI;
-use Shika;
+use Moose;
 
 with qw(
     HTTP::Engine::Role::RequestBuilder
@@ -7,4 +7,6 @@ with qw(
     HTTP::Engine::Role::RequestBuilder::HTTPBody
 );
 
+no Moose;
+__PACKAGE__->meta->make_immutable;
 __PACKAGE__

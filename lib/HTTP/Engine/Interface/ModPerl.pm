@@ -69,6 +69,8 @@ has 'context_key' => (
     isa     => 'Str',
 );
 
+no Moose;
+
 my %HE;
 
 sub handler : method
@@ -130,7 +132,7 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
 
   # App.pm
   package App;
-  use Shika;
+  use Moose;
   use Data::Dumper;
   use HTTP::Engine;
 
@@ -163,7 +165,7 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
 
   # App/ModPerl.pm
   package App::ModPerl;
-  use Shika;
+  use Moose;
   extends 'HTTP::Engine::Interface::ModPerl';
   use App;
   

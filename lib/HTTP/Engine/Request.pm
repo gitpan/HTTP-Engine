@@ -1,11 +1,12 @@
 package HTTP::Engine::Request;
-use Shika;
-use HTTP::Headers::Fast;
+use Moose;
+
+use Carp;
+use HTTP::Headers;
 use HTTP::Engine::Types::Core qw( Uri Header );
 use URI::QueryParam;
-require Carp; # Carp->import is too heavy =(
 
-# Shika role merging is borked with attributes
+# Moose role merging is borked with attributes
 #with qw(HTTP::Engine::Request);
 
 # this object constructs all our lazy fields for us
@@ -120,7 +121,7 @@ sub _build_proxy_request {
 
 has uri => (
     is     => 'rw',
-    isa => 'Uri',
+    isa    => Uri,
     coerce => 1,
     lazy_build => 1,
     handles => [qw(base path)],
@@ -144,7 +145,7 @@ sub _build_raw_body {
 
 has headers => (
     is      => 'rw',
-    isa => 'Header',
+    isa     => Header,
     coerce  => 1,
     lazy_build => 1,
     handles => [ qw(content_encoding content_length content_type header referer user_agent) ],
@@ -223,6 +224,8 @@ sub _build_uploads {
     my $self = shift;
     $self->request_builder->_prepare_uploads($self);
 }
+
+no Moose;
 
 # aliases
 *body_params  = \&body_parameters;
@@ -303,7 +306,7 @@ sub upload {
 sub uri_with {
     my($self, $args) = @_;
     
-    Carp::carp( 'No arguments passed to uri_with()' ) unless $args;
+    carp( 'No arguments passed to uri_with()' ) unless $args;
 
     for my $value (values %{ $args }) {
         next unless defined $value;
@@ -342,7 +345,7 @@ sub content {
     my ( $self, @args ) = @_;
 
     if ( @args ) {
-        Carp::croak "The HTTP::Request method 'content' is unsupported when used as a writer, use HTTP::Engine::RequestBuilder";
+        croak "The HTTP::Request method 'content' is unsupported when used as a writer, use HTTP::Engine::RequestBuilder";
     } else {
         return $self->raw_body;
     }
@@ -354,8 +357,10 @@ sub as_string {
 }
 
 sub parse {
-    Carp::croak "The HTTP::Request method 'parse' is unsupported, use HTTP::Engine::RequestBuilder";
+    croak "The HTTP::Request method 'parse' is unsupported, use HTTP::Engine::RequestBuilder";
 }
+
+__PACKAGE__->meta->make_immutable;
 
 1;
 __END__

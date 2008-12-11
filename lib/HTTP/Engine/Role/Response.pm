@@ -1,5 +1,5 @@
 package HTTP::Engine::Role::Response;
-use Shika::Role;
+use Moose::Role;
 
 requires qw(
     context
