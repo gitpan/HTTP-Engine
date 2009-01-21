@@ -28,23 +28,21 @@ if (HAVE_MP) {
 name 'HTTP-Engine';
 all_from 'lib/HTTP/Engine.pm';
 
-requires 'Moose'         => 0.59;
-requires 'MooseX::Types' => 0.04;
+requires 'Mouse'         => '0.14';
+requires 'Class::Method::Modifiers' => 0; # for 'before / after method modifiers'
 requires 'Scalar::Util'  => 1.19;
 
 requires 'File::Copy'       => 0;
 requires 'File::Spec::Unix' => 3.2701;
 
 requires 'CGI::Simple::Cookie' => 1.103;
-requires 'HTTP::Body'          => '1.04';
-requires 'HTTP::Headers'       => 5.810;
+requires 'HTTP::Body'          => '1.05';
+requires 'HTTP::Headers::Fast' => 0.01;
 requires 'URI'                 => 1.36;
 
 # prevent tests from failing with HTTP::Server::Simple is present, but
 # but the version is too old. It has no real further dependencies anyway. 
 requires 'HTTP::Server::Simple' => 0.35;
-
-requires 'Test::Base'          => 0;
 
 features(
     'Interface::FCGI' => [
@@ -81,8 +79,10 @@ if (HAVE_MP) {
     tests('t/*.t t/*/*.t t/modperl/basic.t t/modperl/whole.t');
 } else {
     tests('t/*.t t/*/*.t ');
+    author_tests('xt');
 }
 
+build_requires 'YAML'; # Test::Base requires this
 build_requires 'Test::More';
 build_requires 'IO::Scalar';
 build_requires 'File::Temp' => '0.20';

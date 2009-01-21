@@ -1,7 +1,7 @@
 package HTTP::Engine::Role::Interface;
 use strict;
-use Moose::Role;
-use HTTP::Engine::Types::Core qw( Handler );
+use Mouse::Role;
+use HTTP::Engine::Types::Core qw(Handler);
 use HTTP::Engine::ResponseFinalizer;
 
 requires 'run';
@@ -54,7 +54,7 @@ HTTP::Engine::Role::Interface - The Interface Role Definition
 =head1 SYNOPSIS
 
   package HTTP::Engine::Interface::CGI;
-  use Moose;
+  use Mouse;
   with 'HTTP::Engine::Role::Interface';
 
 =head1 DESCRIPTION

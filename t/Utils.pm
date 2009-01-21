@@ -1,7 +1,4 @@
 package t::Utils;
-
-use strict;
-use warnings;
 use HTTP::Engine;
 use HTTP::Request::AsCGI;
 use Test::TCP qw/test_tcp empty_port/;
@@ -11,7 +8,12 @@ use File::Temp qw/tempdir/;
 
 use IO::Socket::INET;
 
+
+# XXX dirty hack section XXX
 {
+    %ENV = (); # clean up %ENV
+
+    # set temporary directory
     no warnings 'redefine';
     my $tmpdir = tempdir( CLEANUP => 1 );
     *HTTP::Engine::RequestBuilder::CGI::upload_tmp   = sub {
@@ -96,13 +98,11 @@ sub daemonize_all (&$@) {
 
                     $args{interface}->{args}->{request_handler} = $args{interface}->{request_handler};
                     my $interface = HTTP::Engine::Interface::CGI->new($args{interface}->{args});
-                    Moose::Util::apply_all_roles(
-                        $interface->response_writer,
-                        'HTTP::Engine::Role::ResponseWriter::ResponseLine'
-                    );
+                    require HTTP::Engine::Role::ResponseWriter::ResponseLine;
+                    HTTP::Engine::Role::ResponseWriter::ResponseLine->meta->apply( $interface->response_writer->meta );
                     delete $args{interface};
 
-                    Moose::Meta::Class
+                    Mouse::Meta::Class
                         ->create_anon_class(
                             superclasses => ['HTTP::Server::Simple::CGI'],
                             methods => {
@@ -113,9 +113,7 @@ sub daemonize_all (&$@) {
                                     )->run;
                                 },
                             },
-                            cache => 1
-                        )->new_object(
-                        )->new(
+                        )->name->new(
                             $port
                         )->run;
                 },
@@ -157,21 +155,16 @@ sub ok_response {
 }
 
 my $BUILDER = do {
-    require HTTP::Engine::Role::RequestBuilder::ParseEnv; # XXX Moose 0.55_01 has a bug... please fix t/030/031
-
-    my $builder_meta = Moose::Meta::Class->create(
-        't::Utils::HTTPRequestBuilder' => (
-            superclass => 'Moose::Meta::Class',
-            roles => [qw(
-                HTTP::Engine::Role::RequestBuilder
-                HTTP::Engine::Role::RequestBuilder::ParseEnv
-                HTTP::Engine::Role::RequestBuilder::HTTPBody
-            )],
-            cache => 1,
-        )
-    );
-    $builder_meta->make_immutable;
-    $builder_meta->name->new(
+    {
+        package t::Utils::HTTPRequestBuilder;
+        use Mouse;
+        with $_ for qw(
+            HTTP::Engine::Role::RequestBuilder::ParseEnv
+            HTTP::Engine::Role::RequestBuilder::HTTPBody
+            HTTP::Engine::Role::RequestBuilder
+        );
+    }
+    t::Utils::HTTPRequestBuilder->new(
         chunk_size => 1,
     );
 };

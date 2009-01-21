@@ -1,11 +1,12 @@
 #!/usr/bin/perl
 
 package HTTP::Engine::Role::RequestBuilder::HTTPBody;
-use Moose::Role;
+use Mouse::Role;
 
 with qw(
     HTTP::Engine::Role::RequestBuilder::ReadBody
 );
+use HTTP::Body;
 
 # tempolary file path for upload file.
 has upload_tmp => (
@@ -41,7 +42,6 @@ sub _build_read_state {
     my $length = $req->content_length || 0;
     my $type   = $req->header('Content-Type');
 
-    HTTP::Engine::Util::require_once('HTTP/Body.pm');
     my $body = HTTP::Body->new($type, $length);
     $body->tmpdir( $self->upload_tmp) if $self->upload_tmp;
 
@@ -76,13 +76,16 @@ sub _prepare_uploads  {
 
         my @uploads;
         for my $upload (@{ $files }) {
-            my $u = HTTP::Engine::Request::Upload->new;
-            $u->headers(HTTP::Headers->new(%{ $upload->{headers} }));
-            $u->type($u->headers->content_type);
-            $u->tempname($upload->{tempname});
-            $u->size($upload->{size});
-            $u->filename($upload->{filename});
-            push @uploads, $u;
+            my $headers = HTTP::Headers::Fast->new( %{ $upload->{headers} } );
+            push(
+                @uploads,
+                HTTP::Engine::Request::Upload->new(
+                    headers  => $headers,
+                    tempname => $upload->{tempname},
+                    size     => $upload->{size},
+                    filename => $upload->{filename},
+                )
+            );
         }
         $uploads{$name} = @uploads > 1 ? \@uploads : $uploads[0];
 

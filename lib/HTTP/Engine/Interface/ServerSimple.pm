@@ -8,7 +8,6 @@ use HTTP::Engine::Interface
 
 use HTTP::Server::Simple 0.34;
 use HTTP::Server::Simple::CGI;
-use HTTP::Headers;
 
 has host => (
     is      => 'ro',
@@ -27,7 +26,6 @@ has net_server => (
     isa     => 'Str | Undef',
     default => undef,
 );
-no Moose;
 
 sub run {
     my ($self, ) = @_;
@@ -35,13 +33,13 @@ sub run {
     my $headers;
     my %setup;
     my $server;
-    $server = Moose::Meta::Class
+    $server = Mouse::Meta::Class
         ->create_anon_class(
             superclasses => ['HTTP::Server::Simple'],
             methods => {
                 setup => sub {
                     shift; # $self;
-                    $headers = HTTP::Headers->new;
+                    $headers = HTTP::Headers::Fast->new;
                     %setup = @_;
                 },
                 headers => sub {
@@ -81,8 +79,7 @@ sub run {
                 net_server => sub { $self->net_server },
             },
             cache => 1
-        )->new_object(
-        )->new(
+        )->name->new(
             $self->port
         );
     $server->host($self->host);

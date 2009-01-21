@@ -1,15 +1,12 @@
 package HTTP::Engine::Types::Core;
 use strict;
 
-use MooseX::Types
-    -declare => [qw/Interface Uri Header Handler/];
-use MooseX::Types::Moose qw( Object HashRef ArrayRef CodeRef );
+use MouseX::Types -declare => [qw/Interface Uri Header Handler/];
 
-use Class::MOP;
 use URI;
 use URI::WithBase;
 use URI::QueryParam;
-use HTTP::Headers;
+use HTTP::Headers::Fast;
 
 do {
     role_type Interface, { role => "HTTP::Engine::Role::Interface" };
@@ -20,38 +17,41 @@ do {
         my $args    = $_->{args};
         $args->{request_handler} = $_->{request_handler};
 
-        if ($module !~ s{^\+}{}) {
-            $module = join('::', "HTTP", "Engine", "Interface", $module);
+        if ( $module !~ s{^\+}{} ) {
+            $module = join( '::', "HTTP", "Engine", "Interface", $module );
         }
 
-        Class::MOP::load_class($module);
+        Mouse::load_class($module);
 
-        return $module->new( %$args );
+        return $module->new(%$args);
     };
 };
 
 do {
     class_type Uri, { class => "URI::WithBase" };
 
-    coerce Uri, from Str => via { 
+    coerce Uri, from Str => via {
+
         # generate base uri
-        my $uri = URI->new($_);
+        my $uri  = URI->new($_);
         my $base = $uri->path;
         $base =~ s{^/+}{};
         $uri->path($base);
         $base .= '/' unless $base =~ /\/$/;
         $uri->query(undef);
         $uri->path($base);
-        URI::WithBase->new($_, $uri);
+        URI::WithBase->new( $_, $uri );
     };
 };
 
 do {
-    class_type Header, { class => "HTTP::Headers" };
+    subtype Header,
+        as 'Object',
+        where { $_->isa('HTTP::Headers::Fast') || $_->isa('HTTP::Headers') };
 
     coerce Header,
-        from ArrayRef => via { HTTP::Headers->new( @{ $_ } ) },
-        from HashRef  => via { HTTP::Headers->new( %{ $_ } ) };
+        from ArrayRef => via { HTTP::Headers::Fast->new( @{$_} ) },
+        from HashRef  => via { HTTP::Headers::Fast->new( %{$_} ) };
 };
 
 do {
@@ -69,7 +69,7 @@ HTTP::Engine::Types::Core - Core HTTP::Engine Types
 
 =head1 SYNOPSIS
 
-  use Moose;
+  use Mouse;
   use HTTP::Engine::Types::Core qw( Interface );
 
   has 'interface' => (
@@ -87,6 +87,6 @@ Kazuhiro Osawa and HTTP::Engine Authors.
 
 =head1 SEE ALSO
 
-L<HTTP::Engine>, L<MooseX::Types>
+L<HTTP::Engine>, L<MouseX::Types>
 
 =cut

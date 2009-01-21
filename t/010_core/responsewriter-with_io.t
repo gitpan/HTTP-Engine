@@ -3,13 +3,13 @@ use overload qw{""} => sub { 'bless' };
 sub new { bless {}, shift }
 
 package DummyRW;
-use Moose;
-with qw(
-    HTTP::Engine::Role::ResponseWriter
+use Mouse;
+with $_ for qw(
+    HTTP::Engine::Role::ResponseWriter::WriteSTDOUT
+    HTTP::Engine::Role::ResponseWriter::OutputBody
     HTTP::Engine::Role::ResponseWriter::Finalize
     HTTP::Engine::Role::ResponseWriter::ResponseLine
-    HTTP::Engine::Role::ResponseWriter::OutputBody
-    HTTP::Engine::Role::ResponseWriter::WriteSTDOUT
+    HTTP::Engine::Role::ResponseWriter
 );
 
 package main;
@@ -47,7 +47,7 @@ use t::Utils;
 
 my $writer = DummyRW->new();
 
-my $tmp = File::Temp->new();
+my $tmp = File::Temp->new(UNLINK => 1);
 $tmp->write("OK!");
 $tmp->flush();
 $tmp->seek(0, File::Temp::SEEK_SET);
@@ -110,7 +110,7 @@ use t::Utils;
 
 my $writer = DummyRW->new();
 
-my $ftmp = File::Temp->new();
+my $ftmp = File::Temp->new(UNLINK => 1);
 $ftmp->write('dummy'x5000);
 $ftmp->flush();
 $ftmp->seek(0, File::Temp::SEEK_SET);
@@ -174,7 +174,7 @@ use t::Utils;
 
 my $writer = DummyRW->new();
 
-my $tmp = File::Temp->new();
+my $tmp = File::Temp->new(ULINK => 1);
 $tmp->write("OK!");
 $tmp->flush();
 $tmp->seek(0, File::Temp::SEEK_SET);

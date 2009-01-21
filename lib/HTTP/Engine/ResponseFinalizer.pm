@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Scalar::Util        ();
 use Carp                ();
+use CGI::Simple::Cookie;
 
 sub finalize {
     my ($class, $req, $res) = @_;
@@ -15,9 +16,9 @@ sub finalize {
     if ($res->body) {
         # get the length from a filehandle
         if ((Scalar::Util::blessed($res->body) && $res->body->can('read')) || (ref($res->body) eq 'GLOB')) {
-            HTTP::Engine::Util::require_once('File/stat.pm');
-            if (my $stat = eval { File::stat::stat($res->body) }) {
-                $res->content_length($stat->size);
+            my $st_size = 7; # see perldoc -f stat
+            if (my $size = eval { (stat($res->body))[$st_size] }) {
+                $res->content_length($size);
             } else {
                 die "Serving filehandle without a content-length($@)";
             }
@@ -45,7 +46,7 @@ sub finalize {
         $res->header( Connection => 'close' );
     }
 
-    $res->body('') if $req->method eq 'HEAD';
+    $res->body('') if ((defined $req->method) and ($req->method eq 'HEAD'));
 }
 
 sub _finalize_cookies  {
@@ -54,8 +55,6 @@ sub _finalize_cookies  {
     my $cookies = $res->cookies;
     my @keys = keys %$cookies;
     if (@keys) {
-        HTTP::Engine::Util::require_once('CGI/Simple/Cookie.pm');
-
         for my $name (@keys) {
             my $val = $cookies->{$name};
             my $cookie = (

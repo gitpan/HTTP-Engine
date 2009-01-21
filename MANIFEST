@@ -1,5 +1,6 @@
 Changes
 examples/dumper.pl
+examples/hello.pl
 examples/lighty/lighty.conf
 examples/lighty/lighty_external_fcgi.conf
 examples/lighty/test_fastcgi.pl
@@ -13,6 +14,7 @@ inc/IO/Scalar.pm
 inc/IO/Socket.pm
 inc/IO/Socket/INET.pm
 inc/Module/Install.pm
+inc/Module/Install/AuthorTests.pm
 inc/Module/Install/Base.pm
 inc/Module/Install/Can.pm
 inc/Module/Install/Fetch.pm
@@ -29,6 +31,7 @@ inc/Test/Builder.pm
 inc/Test/Builder/Module.pm
 inc/Test/More.pm
 inc/Test/TCP.pm
+inc/YAML.pm
 lib/HTTP/Engine.pm
 lib/HTTP/Engine/Cookbook.pod
 lib/HTTP/Engine/Interface.pm
@@ -39,6 +42,7 @@ lib/HTTP/Engine/Interface/POE.pm
 lib/HTTP/Engine/Interface/ServerSimple.pm
 lib/HTTP/Engine/Interface/Standalone.pm
 lib/HTTP/Engine/Interface/Test.pm
+lib/HTTP/Engine/MinimalCGI.pm
 lib/HTTP/Engine/Request.pm
 lib/HTTP/Engine/Request/Upload.pm
 lib/HTTP/Engine/RequestBuilder/CGI.pm
@@ -60,13 +64,14 @@ lib/HTTP/Engine/Role/ResponseWriter/OutputBody.pm
 lib/HTTP/Engine/Role/ResponseWriter/ResponseLine.pm
 lib/HTTP/Engine/Role/ResponseWriter/WriteSTDOUT.pm
 lib/HTTP/Engine/Types/Core.pm
-lib/HTTP/Engine/Util.pm
 Makefile.PL
 MANIFEST			This list of files
 META.yml
 README
 t/00_compile.t
+t/010_core/interface-require.t
 t/010_core/interface.t
+t/010_core/load_requestbuilder_cgi.t
 t/010_core/request-absolute_uri.t
 t/010_core/request-as_http_request.t
 t/010_core/request-as_string.t
@@ -94,6 +99,7 @@ t/010_core/response-code.t
 t/010_core/response-coerce_headers.t
 t/010_core/response-content_length.t
 t/010_core/response-cookie.t
+t/010_core/response-new.t
 t/010_core/response-set_http_response.t
 t/010_core/response-status.t
 t/010_core/response.t
@@ -120,8 +126,14 @@ t/030_daemonize/responsewriter_io.t
 t/030_daemonize/upload-methods.t
 t/030_daemonize/upload.t
 t/030_daemonize/uri.t
+t/040_minimal/001_simple.t
 t/FCGIUtils.pm
 t/response/TestModPerl/Basic.pm
+t/response/TestModPerl/Post.pm
 t/response/TestModPerl/Whole.pm
 t/Utils.pm
 TODO
+xt/97_podspell.t
+xt/98_perlcritic.t
+xt/99_pod.t
+xt/perlcriticrc

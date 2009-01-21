@@ -1,6 +1,5 @@
 package HTTP::Engine::Interface::POE;
-
-our $CLIENT;
+our $CLIENT; ## no critic
 
 use HTTP::Engine::Interface
     builder => 'NoEnv',
@@ -18,7 +17,6 @@ use POE qw/
     Component::Server::TCP
     Filter::HTTPD
 /;
-use IO::Scalar;
 use URI::WithBase;
 
 has host => (
@@ -38,7 +36,7 @@ has alias => (
     isa      => 'Str | Undef',
 );
 
-my $filter = Moose::Meta::Class->create(
+my $filter = Mouse::Meta::Class->create(
     'HTTP::Engine::Interface::POE::Filter',
     superclasses => ['POE::Filter::HTTPD'],
     methods => {
@@ -111,7 +109,8 @@ sub _make_request {
         _connection => {
             input_handle  => do {
                 my $buf = $request->content;
-                IO::Scalar->new( \$buf );
+                open my $fh, '<', \$buf;
+                $fh;
             },
             output_handle => undef,
             env           => \%ENV,

@@ -1,7 +1,17 @@
 Revision history for Perl extension HTTP::Engine
 
+0.0.99_02 2009-01-21T14:31:57+09:00
+         - s/Shika/Mouse/
+         - Added HTTP::Engine::MinimalCGI, a very fast minimal version optimized for vanilla CGI.
+         - [BUG] fixed : cannot get http body at Interface::ModPerl. but, this is a dirty hack...
+
+0.0.99_01 2008-12-02T02:47:36+09:00
+         - merged shika branch
+         - s/Moose/Shika/
+         - s/HTTP::Header/HTTP::Header::Fast/
+
 0.0.21   2008-12-15T17:28:02+09:00
-	 # maintenance release
+	  # maintenance release
          - Interface::ServerSimple: fixed to client does not send a header problem bug
          - fixed bug content-length cannot make
          - test: fixed Cleaning up /tmp directory (rt #41356) ANDK++ tokuhirom++
@@ -12,7 +22,7 @@ Revision history for Perl extension HTTP::Engine
 
 0.0.19   2008-12-01T11:44:14+09:00
          # next release is 0.1.x series
-         # no Moose, use Shika HTTP::Headers::Fast more fast and tiny memory futures
+         # no Moose, use Shika HTTP::Headers::Fast more fast and tiny memory feature
          - Interface::ServerSimple
            fixed bug no headers request's problem miyagawa++
          - lazy loading

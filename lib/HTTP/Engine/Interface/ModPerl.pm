@@ -69,8 +69,6 @@ has 'context_key' => (
     isa     => 'Str',
 );
 
-no Moose;
-
 my %HE;
 
 sub handler : method
@@ -93,9 +91,10 @@ sub handler : method
     $engine->interface->apache( $r );
     $engine->interface->context_key( $context_key );
 
+
     $engine->interface->handle_request(
         _connection => {
-            input_handle   => \*STDIN,
+            input_handle   => $r,
             output_handle  => \*STDOUT,
             env            => \%ENV,
             apache_request => $r,
@@ -132,7 +131,7 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
 
   # App.pm
   package App;
-  use Moose;
+  use Mouse;
   use Data::Dumper;
   use HTTP::Engine;
 
@@ -165,7 +164,7 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
 
   # App/ModPerl.pm
   package App::ModPerl;
-  use Moose;
+  use Mouse;
   extends 'HTTP::Engine::Interface::ModPerl';
   use App;
   

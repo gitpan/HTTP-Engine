@@ -1,18 +1,26 @@
 package HTTP::Engine::Request::Upload;
-
-use Moose;
-
-has filename => ( is => 'rw' );
-has headers  => ( is => 'rw' );
-has size     => ( is => 'rw' );
-has tempname => ( is => 'rw' );
-has type     => ( is => 'rw' );
+use Mouse;
+has filename => (
+    is => 'ro',
+);
+has headers  => (
+    is => 'ro',
+    handles => {
+        type => 'content_type'
+    },
+);
+has size     => (
+    is => 'ro',
+);
+has tempname => (
+    is => 'ro',
+);
 has basename => (
-    is      => 'rw',
+    is => 'ro',
     lazy    => 1,
     default => sub {
         my $self = shift;
-        HTTP::Engine::Util::require_once('File/Spec/Unix.pm');
+        require File::Spec::Unix;
         my $basename = $self->filename;
         $basename =~ s|\\|/|g;
         $basename = ( File::Spec::Unix->splitpath($basename) )[2];
@@ -22,8 +30,7 @@ has basename => (
 );
 
 has fh => (
-    is       => 'rw',
-    required => 1,
+    is => 'ro',
     lazy     => 1,
     default  => sub {
         my $self = shift;
@@ -33,11 +40,9 @@ has fh => (
     },
 );
 
-no Moose;
-
 sub copy_to {
     my $self = shift;
-    HTTP::Engine::Util::require_once('File/Copy.pm');
+    require File::Copy;
     File::Copy::copy( $self->tempname, @_ );
 }
 
@@ -63,8 +68,7 @@ sub slurp {
     $content;
 }
 
-__PACKAGE__->meta->make_immutable;
-
+no Mouse;
 1;
 __END__
 

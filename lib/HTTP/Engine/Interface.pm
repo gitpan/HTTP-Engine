@@ -1,14 +1,26 @@
 package HTTP::Engine::Interface;
-use Moose;
+use Mouse;
+use UNIVERSAL::require;
 
-*unimport = *Moose::unimport;
+my $ARGS;
 
-my $ARGS = {};
+sub init_class {
+    my $klass = shift;
+    my $meta = Mouse::Meta::Class->initialize($klass);
+    $meta->superclasses('Mouse::Object')
+      unless $meta->superclasses;
+
+    no strict 'refs';
+    no warnings 'redefine';
+    *{ $klass . '::meta' } = sub { $meta };
+}
 
 sub import {
     my $class = shift;
 
     my $caller  = caller(0);
+    return if $caller eq 'main';
+
     $ARGS->{$caller} = {@_};
 
     no strict 'refs';
@@ -20,10 +32,9 @@ sub import {
     strict->import;
     warnings->import;
 
-    return if $caller eq 'main';
+    init_class($caller);
 
-    Moose::init_meta($caller);
-    Moose->import( { into => $caller } );
+    Mouse->export_to_level( 1 );
 }
 
 # fix up Interface.
@@ -38,71 +49,76 @@ sub __INTERFACE__ {
     _setup_builder($caller, $builder);
     _setup_writer($caller,  $writer);
 
-    Moose::Util::apply_all_roles($caller, 'HTTP::Engine::Role::Interface');
-    $caller->meta->make_immutable;
+    Mouse::Util::apply_all_roles($caller, 'HTTP::Engine::Role::Interface');
+
+    $caller->meta->make_immutable(inline_destructor => 1);
+
+    "END_OF_MODULE";
 }
 
 sub _setup_builder {
     my ($caller, $builder ) = @_;
     $builder = ($builder =~ s/^\+(.+)$//) ? $1 : "HTTP::Engine::RequestBuilder::$builder";
-    Class::MOP::load_class($builder);
+    unless ($builder->can('meta')) {
+        $builder->require or die $@;
+    }
     my $instance = $builder->new;
-    $caller->meta->add_method(
-        'request_builder' => sub { $instance }
-    );
+
+    no strict 'refs';
+    *{"$caller\::request_builder"} = sub { $instance };
 }
 
 sub _setup_writer {
     my ($caller, $args) = @_;
 
-    my $writer = _construct_writer($caller, $args)->new_object->new;
-    $caller->meta->add_method(
-        'response_writer' => sub {
-            $writer;
-        }
-    );
+    my $writer = _construct_writer($caller, $args)->new;
+    no strict 'refs';
+    *{"$caller\::response_writer"} = sub { $writer };
 }
 
 sub _construct_writer {
     my ($caller, $args, ) = @_;
 
-    my $writer = Moose::Meta::Class->create( $caller . '::ResponseWriter',
-        superclasses => ['Moose::Object'],
-        cache => 1,
-    );
+    my $writer = $caller . '::ResponseWriter';
+    init_class($writer);
 
     {
+        no strict 'refs';
+
         my @roles;
         my $apply = sub { push @roles, "HTTP::Engine::Role::ResponseWriter::$_[0]" };
         if ($args->{finalize}) {
-            $writer->add_method(finalize => $args->{finalize});
+            *{"$writer\::finalize"} = $args->{finalize};
         } else {
             if ($args->{response_line}) {
                 $apply->('ResponseLine');
             }
             if (my $code = $args->{output_body}) {
-                $writer->add_method('output_body' => $code);
+                *{"$writer\::output_body"} = $code;
             } else {
                 $apply->('OutputBody');
             }
             if (my $code = $args->{write}) {
-                $writer->add_method('write' => $code);
+                *{"$writer\::write"} = $code;
             } else {
                 $apply->('WriteSTDOUT');
             }
             $apply->('Finalize');
         }
-        Moose::Util::apply_all_roles($writer, @roles, "HTTP::Engine::Role::ResponseWriter");
+        for my $role (@roles, 'HTTP::Engine::Role::ResponseWriter') {
+            Mouse::Util::apply_all_roles($writer, $role);
+        }
     }
 
     for my $before (keys %{ $args->{before} || {} }) {
-        $writer->add_before_method_modifier( $before => $args->{before}->{$before} );
+        $writer->meta->add_before_method_modifier( $before => $args->{before}->{$before} );
     }
     for my $attribute (keys %{ $args->{attributes} || {} }) {
-        $writer->add_attribute( $attribute => $args->{attributes}->{$attribute} );
+        Mouse::Meta::Attribute->create( $writer->meta, $attribute,
+            %{ $args->{attributes}->{$attribute} } );
     }
 
-    $writer->make_immutable;
+    $writer->meta->make_immutable(inline_destructor => 1);
 
     return $writer;
 }

@@ -1,5 +1,5 @@
 package HTTP::Engine::Role::Response;
-use Moose::Role;
+use Mouse::Role;
 
 requires qw(
     context
