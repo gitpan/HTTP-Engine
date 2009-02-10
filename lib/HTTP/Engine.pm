@@ -1,7 +1,7 @@
 package HTTP::Engine;
 use 5.00800;
 use Mouse;
-our $VERSION = '0.1.1';
+our $VERSION = '0.1.2';
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
 use HTTP::Engine::Response;
@@ -84,6 +84,10 @@ version over 0.0.13 is incompatible of version under 0.0.12.
 using L<HTTP::Engine::Compat> module if you want compatibility of version under 0.0.12.
 
 version 0.0.13 is unsupported of context and middleware.
+
+=head1 MIDDLEWARE
+
+Middleware can be used if you wish. Please see L<HTTP::Engine::Middleware>.
 
 =head1 DESCRIPTION
 
@@ -242,6 +246,7 @@ gugod
 
 =head1 SEE ALSO
 
+L<HTTP::Engine::Middleware>,
 L<HTTP::Engine::Compat>,
 L<HTTPEx::Declare>,
 L<Mouse>
