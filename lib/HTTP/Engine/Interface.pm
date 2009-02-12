@@ -93,6 +93,11 @@ sub _construct_writer {
             if ($args->{response_line}) {
                 $apply->('ResponseLine');
             }
+            if (my $code = $args->{output_header}) {
+                *{"$writer\::output_header"} = $code;
+            } else {
+                $apply->('OutputHeader');
+            }
             if (my $code = $args->{output_body}) {
                 *{"$writer\::output_body"} = $code;
             } else {
@@ -112,6 +117,9 @@ sub _construct_writer {
 
     for my $before (keys %{ $args->{before} || {} }) {
         $writer->meta->add_before_method_modifier( $before => $args->{before}->{$before} );
+    }
+    for my $around (keys %{ $args->{around} || {} }) {
+        $writer->meta->add_around_method_modifier( $around => $args->{around}->{$around} );
     }
     for my $attribute (keys %{ $args->{attributes} || {} }) {
         Mouse::Meta::Attribute->create( $writer->meta, $attribute,
