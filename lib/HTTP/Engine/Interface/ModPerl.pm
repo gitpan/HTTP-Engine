@@ -65,7 +65,7 @@ sub handler : method
     # ModPerl is currently the only environment where the inteface comes
     # before the actual invocation of HTTP::Engine
 
-    my $context_key = join ':', $ENV{SERVER_NAME}, $ENV{SERVER_PORT}, $r->location;
+    my $context_key = $ENV{HTTP_ENGINE_CONTEXT_KEY} || join ':', $ENV{SERVER_NAME}, $ENV{SERVER_PORT}, $r->location;
     my $engine   = $HE{ $context_key };
     if (! $engine ) {
         $engine = $class->create_engine($r, $context_key);
@@ -116,7 +116,7 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
 
   # App.pm
   package App;
-  use Mouse;
+  use Mouse; # or use Moose or use Any::Moose
   use Data::Dumper;
   use HTTP::Engine;
 
@@ -149,7 +149,7 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
 
   # App/ModPerl.pm
   package App::ModPerl;
-  use Mouse;
+  use Mouse; # or use Moose or use Any::Moose
   extends 'HTTP::Engine::Interface::ModPerl';
   use App;
   
@@ -159,7 +159,7 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
       App->new->setup_engine({
           module => 'ModPerl',
       });
-  }
+x  }
 
 
   # in httpd.conf
@@ -168,6 +168,25 @@ HTTP::Engine::Interface::ModPerl - mod_perl Adaptor for HTTP::Engine
       <Location />
           SetHandler modperl
           PerlOptions +SetupEnv
+          PerlResponseHandler App::ModPerl
+      </Location>
+  </VirtualHost>
+
+
+When you move the same application by two or more server name.
+Because the reason is because it makes instance every combination of SERVER_NAME, SERVER_PORT and DOCUMENT_ROOT.
+
+  # in httpd.conf
+  PerlSwitches -Mlib=/foo/bar/app/lib
+  <VirtualHost 127.0.0.1:8080>
+      ServerName www.example.com
+      ServerAlias host1.example.com
+      ServerAlias host2.example.com
+      ServerAlias host3.example.com
+      <Location />
+          SetHandler modperl
+          PerlOptions +SetupEnv
+          PerlSetEnv HTTP_ENGINE_CONTEXT_KEY YOUR_CHOICE_APPLICATION_UNIQUE_KEY
           PerlResponseHandler App::ModPerl
       </Location>
   </VirtualHost>
