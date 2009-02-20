@@ -1,7 +1,7 @@
 package HTTP::Engine;
 use 5.00800;
 use Any::Moose;
-our $VERSION = '0.1.4_02';
+our $VERSION = '0.1.4';
 use HTTP::Engine::Request;
 use HTTP::Engine::Request::Upload;
 use HTTP::Engine::Response;
@@ -67,6 +67,10 @@ Most specifications are frozen.
 The specification is changed by the situation.
 
 I want to perform Async support. (AnyEvent? Danga::Socket? IO::Async?)
+
+=head3 0.1.4
+
+switched to L<Any::Moose>
 
 =head2 0.0.99_x
 

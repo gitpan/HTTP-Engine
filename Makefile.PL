@@ -49,7 +49,7 @@ requires 'File::Spec::Unix' => 3.2701;
 
 requires 'CGI::Simple::Cookie' => 1.103;
 requires 'HTTP::Body'          => '1.05';
-requires 'HTTP::Headers::Fast' => 0.05;
+requires 'HTTP::Headers::Fast' => 0.09;
 requires 'URI'                 => 1.36;
 
 # prevent tests from failing with HTTP::Server::Simple is present, but
@@ -161,7 +161,7 @@ if (HAVE_MOOSE) {
         open my $from_fh, '<', $from;
         open my $to_fh, '>', $to;
         if ($to =~ /\.t$/) {
-            print $to_fh "{ package dummy_load_moose; use Moose; }\n";
+            print $to_fh "BEGIN { \$ENV{ANY_MOOSE} = 'Moose' }\n";
         }
 
         while (<$from_fh>) {
