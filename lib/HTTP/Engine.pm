@@ -1,9 +1,8 @@
 package HTTP::Engine;
 use 5.00800;
 use Any::Moose;
-our $VERSION = '0.1.4_03';
+our $VERSION = '0.1.4_04';
 use HTTP::Engine::Request;
-use HTTP::Engine::Request::Upload;
 use HTTP::Engine::Response;
 use HTTP::Engine::Types::Core qw( Interface );
 
@@ -15,12 +14,7 @@ has 'interface' => (
 );
 
 no Any::Moose;
-$_->meta->make_immutable(inline_destructor => 1) for qw(
-    HTTP::Engine::Request::Upload
-    HTTP::Engine::Request
-    HTTP::Engine::Response
-    HTTP::Engine
-);
+__PACKAGE__->meta->make_immutable(inline_destructor => 1);
 1;
 __END__
 
