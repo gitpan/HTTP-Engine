@@ -13,7 +13,7 @@ BEGIN
 
     if (!$ENV{SHIPIT} && eval {
         require Moose  && Moose->VERSION(
-            '0.68'
+            '0.73'
         ) && require MooseX::Types
     }) {
         *HAVE_MOOSE = sub { 1 };
@@ -38,8 +38,8 @@ if (HAVE_MP) {
 name 'HTTP-Engine';
 all_from 'lib/HTTP/Engine.pm';
 
-requires 'Any::Moose'    => '0.05';
-requires 'Mouse'         => '0.19';
+requires 'Any::Moose'    => '0.06';
+requires 'Mouse'         => '0.20';
 requires 'MouseX::Types' => '0.01';
 requires 'Class::Method::Modifiers' => 0; # for 'before / after method modifiers'
 requires 'Scalar::Util'  => 1.19;
@@ -116,13 +116,15 @@ build_requires 'Test::More';
 build_requires 'IO::Scalar';
 build_requires 'File::Temp' => '0.20';
 build_requires 'HTTP::Request::AsCGI';
-build_requires 'Test::TCP' => 0.02;
+build_requires 'Test::TCP' => 0.04;
+build_requires 'Test::SharedFork' => 0.04;
 build_requires 'IO::Socket' => 1.30;
 build_requires 'IO::Socket::INET';
 build_requires 'IO::File' => 1.14;
 
 use_test_base;
 auto_include;
+auto_set_repository;
 WriteAll;
 
 # generate moose's test
