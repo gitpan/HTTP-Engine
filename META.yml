@@ -34,7 +34,7 @@ recommends:
   POE: 1.0003
   POE::Filter::HTTPD: 1.2387
 requires:
-  Any::Moose: 0.06
+  Any::Moose: 0.07
   CGI::Simple::Cookie: 1.103
   Class::Method::Modifiers: 0
   File::Copy: 0
@@ -42,7 +42,7 @@ requires:
   HTTP::Body: 1.05
   HTTP::Headers::Fast: 0.09
   HTTP::Server::Simple: 0.35
-  Mouse: 0.20
+  Mouse: 0.21
   MouseX::Types: 0.01
   Scalar::Util: 1.19
   URI: 1.36
@@ -50,4 +50,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://svn.coderepos.org/share/lang/perl/HTTP-Engine/trunk
-version: 0.1.6
+version: 0.1.7
