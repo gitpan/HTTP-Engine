@@ -38,7 +38,7 @@ run {
 
     tie *STDERR, 'IO::Scalar', \my $out;
     $req->uri_with;
-    untie *STDOUT;
+    untie *STDERR;
     like $out, qr/No arguments passed to uri_with()/;
 };
 
@@ -241,3 +241,14 @@ __END__
 --- expected: http:///
 --- expected_base: http:///
 --- expected_params: {}
+
+===
+--- args
+--- add_env
+  HTTP_HOST: example.com
+  SCRIPT_NAME: /
+  QUERY_STRING: aco=tie
+--- expected: http://example.com/?aco=tie
+--- expected_uri: http://example.com/?aco=tie
+--- expected_base: http://example.com/
+--- expected_params: { aco => 'tie' }
