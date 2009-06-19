@@ -1,7 +1,7 @@
 package HTTP::Engine;
 use 5.00800;
 use Any::Moose;
-our $VERSION = '0.1.8';
+our $VERSION = '0.02001';
 use HTTP::Engine::Request;
 use HTTP::Engine::Response;
 use HTTP::Engine::Types::Core qw( Interface );
@@ -50,17 +50,18 @@ HTTP::Engine - Web Server Gateway Interface and HTTP Server Engine Drivers (Yet 
 
 =head1 MILESTONE
 
-=head2 0.x.x
+=head2 0.02xxx (Now here)
 
 A substantial document. (A tutorial, the Cookbook and hacking HowTo)
+The specification is changed by the situation.
 
-=head2 0.1.x (Now here)
+We want to perform Async support. (AnyEvent? Danga::Socket? IO::Async? use Coro?)
+
+=head2 0.1.x
 
 Improvement in performance and resource efficiency.
 Most specifications are frozen.
 The specification is changed by the situation.
-
-I want to perform Async support. (AnyEvent? Danga::Socket? IO::Async?)
 
 =head3 0.1.4
 
@@ -117,7 +118,7 @@ available.
 
 The community can be found via:
 
-  IRC: irc.perl.org#http-engine irc.freenode.net#coderepos
+  IRC: irc.perl.org#http-engine
 
   Mailing list: http://lists.scsys.co.uk/cgi-bin/mailman/listinfo/http-engine
 
@@ -126,6 +127,8 @@ The community can be found via:
   Twitter: http://twitter.com/httpengine
 
 The following things are no longer used
+
+  IRC: irc.freenode.net#coderepos
 
   Wiki Page: http://coderepos.org/share/wiki/HTTP%3A%3AEngine
 
@@ -257,6 +260,8 @@ stevan
 hirose31
 
 fujiwara
+
+miyagawa
 
 =head1 SEE ALSO
 
