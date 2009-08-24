@@ -34,7 +34,6 @@ if (HAVE_MP) {
         \&recommends;
 }
 
-
 name 'HTTP-Engine';
 all_from 'lib/HTTP/Engine.pm';
 
@@ -121,6 +120,11 @@ build_requires 'Test::SharedFork' => 0.04;
 build_requires 'IO::Socket' => 1.30;
 build_requires 'IO::Socket::INET';
 build_requires 'IO::File' => 1.14;
+
+author_requires 'POE';
+author_requires 'Net::Server::Single';
+author_requires 'Moose';
+author_requires 'MooseX::Types';
 
 use_test_base;
 auto_include;

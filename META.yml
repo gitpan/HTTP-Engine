@@ -3,6 +3,7 @@ abstract: 'Web Server Gateway Interface and HTTP Server Engine Drivers'
 author:
   - 'Kazuhiro Osawa <yappo <at> shibuya <döt> pl>'
 build_requires:
+  ExtUtils::MakeMaker: 6.42
   File::Temp: 0.20
   HTTP::Request::AsCGI: 0
   IO::File: 1.14
@@ -13,8 +14,10 @@ build_requires:
   Test::SharedFork: 0.04
   Test::TCP: 0.04
   YAML: 0
+configure_requires:
+  ExtUtils::MakeMaker: 6.42
 distribution_type: module
-generated_by: 'Module::Install version 0.790'
+generated_by: 'Module::Install version 0.910'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -25,6 +28,7 @@ no_index:
     - examples
     - inc
     - t
+    - xt
 recommends:
   Errno: 1.0901
   FCGI: 0.67
@@ -50,4 +54,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: git://github.com/http-engine/HTTP-Engine.git
-version: 0.02003
+version: 0.02004
