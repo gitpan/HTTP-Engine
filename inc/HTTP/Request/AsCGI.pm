@@ -1,6 +1,8 @@
 #line 1
 package HTTP::Request::AsCGI;
+our $VERSION = '0.9';
 
+# ABSTRACT: Set up a CGI environment from an HTTP::Request
 use strict;
 use warnings;
 use bytes;
@@ -10,10 +12,21 @@ use Carp;
 use HTTP::Response;
 use IO::Handle;
 use IO::File;
+use URI ();
+use URI::Escape ();
 
-__PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
+__PACKAGE__->mk_accessors(qw[ environment request stdin stdout stderr ]);
 
-our $VERSION = 0.5;
+# old typo
+
+*enviroment = \&environment;
+
+my %reserved = map { sprintf('%02x', ord($_)) => 1 } split //, $URI::reserved;
+sub _uri_safe_unescape {
+    my ($s) = @_;
+    $s =~ s/%([a-fA-F0-9]{2})/$reserved{lc($1)} ? "%$1" : chr(hex($1))/ge;
+    $s;
+}
 
 sub new {
     my $class   = shift;
@@ -37,11 +50,11 @@ sub new {
 
     $uri = $uri->canonical;
 
-    my $enviroment = {
+    my $environment = {
         GATEWAY_INTERFACE => 'CGI/1.1',
         HTTP_HOST         => $uri->host_port,
         HTTPS             => ( $uri->scheme eq 'https' ) ? 'ON' : 'OFF',  # not in RFC 3875
-        PATH_INFO         => $uri->path,
+        PATH_INFO         => _uri_safe_unescape($uri->path),
         QUERY_STRING      => $uri->query || '',
         SCRIPT_NAME       => '/',
         SERVER_NAME       => $uri->host,
@@ -62,17 +75,17 @@ sub new {
         $key =~ tr/-/_/;
         $key =~ s/^HTTP_// if $field =~ /^Content-(Length|Type)$/;
 
-        unless ( exists $enviroment->{$key} ) {
-            $enviroment->{$key} = $request->headers->header($field);
+        unless ( exists $environment->{$key} ) {
+            $environment->{$key} = $request->headers->header($field);
         }
     }
 
-    unless ( $enviroment->{SCRIPT_NAME} eq '/' && $enviroment->{PATH_INFO} ) {
-        $enviroment->{PATH_INFO} =~ s/^\Q$enviroment->{SCRIPT_NAME}\E/\//;
-        $enviroment->{PATH_INFO} =~ s/^\/+/\//;
+    unless ( $environment->{SCRIPT_NAME} eq '/' && $environment->{PATH_INFO} ) {
+        $environment->{PATH_INFO} =~ s/^\Q$environment->{SCRIPT_NAME}\E/\//;
+        $environment->{PATH_INFO} =~ s/^\/+/\//;
     }
 
-    $self->enviroment($enviroment);
+    $self->environment($environment);
 
     return $self;
 }
@@ -80,33 +93,36 @@ sub new {
 sub setup {
     my $self = shift;
 
-    $self->{restore}->{enviroment} = {%ENV};
+    $self->{restore}->{environment} = {%ENV};
 
     binmode( $self->stdin );
 
     if ( $self->request->content_length ) {
 
-        syswrite( $self->stdin, $self->request->content )
+        $self->stdin->print($self->request->content)
           or croak("Can't write request content to stdin handle: $!");
 
-        sysseek( $self->stdin, 0, SEEK_SET )
+        $self->stdin->seek(0, SEEK_SET)
           or croak("Can't seek stdin handle: $!");
+
+        $self->stdin->flush
+          or croak("Can't flush stdin handle: $!");
     }
 
-    open( $self->{restore}->{stdin}, '<&', STDIN->fileno )
+    open( $self->{restore}->{stdin}, '<&'. STDIN->fileno )
       or croak("Can't dup stdin: $!");
 
-    open( STDIN, '<&=', $self->stdin->fileno )
+    open( STDIN, '<&='. $self->stdin->fileno )
       or croak("Can't open stdin: $!");
 
     binmode( STDIN );
 
     if ( $self->stdout ) {
 
-        open( $self->{restore}->{stdout}, '>&', STDOUT->fileno )
+        open( $self->{restore}->{stdout}, '>&'. STDOUT->fileno )
           or croak("Can't dup stdout: $!");
 
-        open( STDOUT, '>&=', $self->stdout->fileno )
+        open( STDOUT, '>&='. $self->stdout->fileno )
           or croak("Can't open stdout: $!");
 
         binmode( $self->stdout );
@@ -115,10 +131,10 @@ sub setup {
 
     if ( $self->stderr ) {
 
-        open( $self->{restore}->{stderr}, '>&', STDERR->fileno )
+        open( $self->{restore}->{stderr}, '>&'. STDERR->fileno )
           or croak("Can't dup stderr: $!");
 
-        open( STDERR, '>&=', $self->stderr->fileno )
+        open( STDERR, '>&='. $self->stderr->fileno )
           or croak("Can't open stderr: $!");
 
         binmode( $self->stderr );
@@ -127,7 +143,7 @@ sub setup {
 
     {
         no warnings 'uninitialized';
-        %ENV = %{ $self->enviroment };
+        %ENV = %{ $self->environment };
     }
 
     if ( $INC{'CGI.pm'} ) {
@@ -225,10 +241,10 @@ sub restore {
 
     {
         no warnings 'uninitialized';
-        %ENV = %{ $self->{restore}->{enviroment} };
+        %ENV = %{ $self->{restore}->{environment} };
     }
 
-    open( STDIN, '<&', $self->{restore}->{stdin} )
+    open( STDIN, '<&'. fileno($self->{restore}->{stdin}) )
       or croak("Can't restore stdin: $!");
 
     sysseek( $self->stdin, 0, SEEK_SET )
@@ -239,7 +255,7 @@ sub restore {
         STDOUT->flush
           or croak("Can't flush stdout: $!");
 
-        open( STDOUT, '>&', $self->{restore}->{stdout} )
+        open( STDOUT, '>&'. fileno($self->{restore}->{stdout}) )
           or croak("Can't restore stdout: $!");
 
         sysseek( $self->stdout, 0, SEEK_SET )
@@ -251,7 +267,7 @@ sub restore {
         STDERR->flush
           or croak("Can't flush stderr: $!");
 
-        open( STDERR, '>&', $self->{restore}->{stderr} )
+        open( STDERR, '>&'. fileno($self->{restore}->{stderr}) )
           or croak("Can't restore stderr: $!");
 
         sysseek( $self->stderr, 0, SEEK_SET )
@@ -270,6 +286,12 @@ sub DESTROY {
 
 1;
 
+
+
+
+#line 414
+
+
+
 __END__
 
-#line 382

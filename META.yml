@@ -54,4 +54,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: git://github.com/http-engine/HTTP-Engine.git
-version: 0.02004
+version: 0.03
