@@ -5,7 +5,7 @@ package Test::Base;
 use 5.006001;
 use Spiffy 0.30 -Base;
 use Spiffy ':XXX';
-our $VERSION = '0.52';
+our $VERSION = '0.59';
 
 my @test_more_exports;
 BEGIN {
@@ -29,8 +29,9 @@ our @EXPORT = (@test_more_exports, qw(
     delimiters spec_file spec_string 
     filters filters_delay filter_arguments
     run run_compare run_is run_is_deeply run_like run_unlike 
+    skip_all_unless_require is_deep run_is_deep
     WWW XXX YYY ZZZ
-    tie_output
+    tie_output no_diag_on_only
 
     find_my_self default_object
 
@@ -51,6 +52,7 @@ field block_delim =>
 field data_delim =>
       -init => '$self->data_delim_default';
 field _filters_delay => 0;
+field _no_diag_on_only => 0;
 
 field block_delim_default => '===';
 field data_delim_default => '---';
@@ -188,6 +190,11 @@ sub first_block() {
 sub filters_delay() {
     (my ($self), @_) = find_my_self(@_);
     $self->_filters_delay(defined $_[0] ? shift : 1);
+}
+
+sub no_diag_on_only() {
+    (my ($self), @_) = find_my_self(@_);
+    $self->_no_diag_on_only(defined $_[0] ? shift : 1);
 }
 
 sub delimiters() {
@@ -364,6 +371,34 @@ sub run_unlike() {
     }
 }
 
+sub skip_all_unless_require() {
+    (my ($self), @_) = find_my_self(@_);
+    my $module = shift;
+    eval "require $module; 1"
+        or Test::More::plan(
+            skip_all => "$module failed to load"
+        );
+}
+
+sub is_deep() {
+    (my ($self), @_) = find_my_self(@_);
+    require Test::Deep;
+    Test::Deep::cmp_deeply(@_);
+}
+
+sub run_is_deep() {
+    (my ($self), @_) = find_my_self(@_);
+    $self->_assert_plan;
+    my ($x, $y) = $self->_section_names(@_);
+    for my $block (@{$self->block_list}) {
+        next unless exists($block->{$x}) and exists($block->{$y});
+        $block->run_filters unless $block->is_filtered;
+        is_deep($block->$x, $block->$y, 
+           $block->name ? $block->name : ()
+          );
+    }
+}
+
 sub _pre_eval {
     my $spec = shift;
     return $spec unless $spec =~
@@ -394,6 +429,8 @@ sub _choose_blocks {
     for my $hunk (@_) {
         my $block = $self->_make_block($hunk);
         if (exists $block->{ONLY}) {
+            diag "I found ONLY: maybe you're debugging?"
+                unless $self->_no_diag_on_only;
             return [$block];
         }
         next if exists $block->{SKIP};
@@ -577,11 +614,17 @@ sub run_filters {
             my $function = "main::$filter";
             no strict 'refs';
             if (defined &$function) {
-                $_ = join '', @value;
+                local $_ =
+                    (@value == 1 and not defined($value[0])) ? undef :
+                        join '', @value;
+                my $old = $_;
                 @value = &$function(@value);
                 if (not(@value) or 
-                    @value == 1 and $value[0] =~ /\A(\d+|)\z/
+                    @value == 1 and defined($value[0]) and $value[0] =~ /\A(\d+|)\z/
                 ) {
+                    if ($value[0] && $_ eq $old) {
+                        Test::Base::diag("Filters returning numbers are supposed to do munging \$_: your filter '$function' apparently doesn't.");
+                    }
                     @value = ($_);
                 }
             }
@@ -636,4 +679,6 @@ sub _get_filters {
 
 __DATA__
 
-#line 1298
+=encoding utf8
+
+#line 1376
